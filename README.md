@@ -1,4 +1,4 @@
-# PiLang: The Next Horizon - PIRTM/MOC as a General-Purpose Programming Language
+PIRTM/MOC as a General-Purpose Programming Language
 
 You have a fully functional compiler that can parse, verify, lower, and execute PIRTM/MOC programs. The substrate is proven, the runtime is governed, and the toolchain is production-ready for mathematical kernels (prime-indexed tensor contractions, transcendentals, etc.).
 
