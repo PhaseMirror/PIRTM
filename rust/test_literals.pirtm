@@ -1,0 +1,6 @@
+fn main() -> int {
+    let s = "hello";
+    let c = 'a';
+    let f = 3.14;
+    return 0;
+}

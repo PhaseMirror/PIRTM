@@ -1,0 +1,12 @@
+// Simple test to ensure the compiler handles struct initialization and externs
+extern "C" fn print(s: str);
+
+struct Map {
+    ptr: int,
+    len: int
+}
+
+fn main() -> int {
+    let m = Map { ptr: 0, len: 0 };
+    return 0;
+}

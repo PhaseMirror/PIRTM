@@ -1,0 +1,5 @@
+//! I/O utilities
+use std::string::String;
+
+extern "C" fn read_file(path: *u8) -> String;
+extern "C" fn print(s: *u8);

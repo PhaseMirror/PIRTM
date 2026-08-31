@@ -1,0 +1,15 @@
+name = "PiLang"
+version = "0.1.0"
+defaultTargets = ["ADR"]
+srcDir = "lean"
+
+[[lean_lib]]
+name = "ADR"
+
+[[lean_exe]]
+name = "test"
+root = "ADR.Test"
+
+[[lean_exe]]
+name = "export"
+root = "ADR.Export"

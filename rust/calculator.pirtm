@@ -1,0 +1,45 @@
+use std::option::Option;
+use std::result::Result;
+
+extern "C" fn printf(msg: str, val: i64) -> i1;
+extern "C" fn puts(msg: str) -> i1;
+extern "C" fn panic(msg: str) -> never;
+
+enum Op {
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+}
+
+fn calculate(a: i64, b: i64, op: Op) -> Result<i64, str> {
+    match (op) {
+        Op::Plus => Result::Ok(a + b),
+        Op::Minus => Result::Ok(a - b),
+        Op::Multiply => Result::Ok(a * b),
+        Op::Divide => {
+            if (b == 0) {
+                Result::Err("division by zero")
+            } else {
+                Result::Ok(a / b)
+            }
+        }
+    }
+}
+
+fn main() -> i64 {
+    let a = 10;
+    let b = 0;
+    let res = calculate(a, b, Op::Divide);
+    
+    match (res) {
+        Result::Ok(val) => {
+            printf("Result: %d\n", val);
+            val
+        }
+        Result::Err(msg) => {
+            puts(msg);
+            0
+        }
+    }
+}

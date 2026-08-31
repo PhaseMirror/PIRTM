@@ -1,0 +1,24 @@
+//! Simple hash map (keys are strings, values are i64 for simplicity)
+
+extern "C" fn map_new() -> *u8;
+extern "C" fn map_insert(map: *u8, key: *u8, value: i64);
+extern "C" fn map_get(map: *u8, key: *u8) -> i64;
+
+struct Map<K, V> {
+    ptr: *u8,
+}
+
+impl<K, V> Map<K, V> {
+    fn new() -> Map<K, V> {
+        Map { ptr: map_new() }
+    }
+
+    fn insert(&mut self, key: String, value: V) {
+        map_insert(self.ptr, key.ptr, value);
+    }
+
+    fn get(&self, key: String) -> Option<V> {
+        let val = map_get(self.ptr, key.ptr);
+        if val == 0 { Option::None } else { Option::Some(val) }
+    }
+}

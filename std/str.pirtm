@@ -1,0 +1,6 @@
+//! String utilities (for raw C strings)
+
+extern "C" fn str_len(s: *u8) -> i64;
+extern "C" fn str_starts_with(s: *u8, prefix: *u8) -> bool;
+extern "C" fn str_ends_with(s: *u8, suffix: *u8) -> bool;
+extern "C" fn str_trim(s: *u8) -> *u8;

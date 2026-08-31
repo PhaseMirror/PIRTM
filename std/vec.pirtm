@@ -1,0 +1,36 @@
+//! Growable vector
+
+extern "C" fn vec_new() -> *u8;
+extern "C" fn vec_push(vec: *u8, item: i64);
+extern "C" fn vec_pop(vec: *u8) -> i64;
+extern "C" fn vec_len(vec: *u8) -> i64;
+extern "C" fn vec_get(vec: *u8, idx: i64) -> i64;
+
+struct Vec<T> {
+    ptr: *u8,
+}
+
+impl<T> Vec<T> {
+    fn new() -> Vec<T> {
+        Vec { ptr: vec_new() }
+    }
+
+    fn push(&mut self, item: T) {
+        // We pass the item as i64; the runtime will reinterpret it.
+        vec_push(self.ptr, item);
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        let val = vec_pop(self.ptr);
+        if val == 0 { Option::None } else { Option::Some(val) }
+    }
+
+    fn len(&self) -> i64 {
+        vec_len(self.ptr)
+    }
+
+    fn get(&self, idx: i64) -> Option<T> {
+        let val = vec_get(self.ptr, idx);
+        if val == 0 { Option::None } else { Option::Some(val) }
+    }
+}

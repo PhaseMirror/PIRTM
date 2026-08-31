@@ -1,0 +1,26 @@
+// core.pirtm – Standard library definitions
+
+enum Option<T> {
+    None,
+    Some(T)
+}
+
+enum Result<T, E> {
+    Ok(T),
+    Err(E)
+}
+
+// Option methods
+fn unwrap<T>(opt: Option<T>) -> T {
+    match opt {
+        Option::Some(v) => v,
+        Option::None => panic("unwrapped None")
+    }
+}
+
+fn map<T, U>(opt: Option<T>, f: fn(T) -> U) -> Option<U> {
+    match opt {
+        Option::Some(v) => Option::Some(f(v)),
+        Option::None => Option::None
+    }
+}

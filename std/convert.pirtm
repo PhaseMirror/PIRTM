@@ -1,0 +1,5 @@
+//! Type conversions
+use std::string::String;
+
+extern "C" fn parse_f64(s: *u8) -> f64;
+extern "C" fn f64_to_string(n: f64) -> String;

@@ -1,0 +1,49 @@
+//! UTF‑8 string
+
+extern "C" fn string_new() -> *u8;
+extern "C" fn string_from_cstr(cstr: *u8) -> *u8;
+extern "C" fn string_char_at(s: *u8, idx: i64) -> char;
+extern "C" fn string_slice(s: *u8, start: i64, end: i64) -> *u8;
+extern "C" fn string_concat(a: *u8, b: *u8) -> *u8;
+extern "C" fn string_len(s: *u8) -> i64;
+extern "C" fn string_eq(a: *u8, b: *u8) -> bool;
+
+struct String {
+    ptr: *u8,
+}
+
+impl String {
+    fn new() -> String {
+        String { ptr: string_new() }
+    }
+
+    fn from_str(cstr: *u8) -> String {
+        String { ptr: string_from_cstr(cstr) }
+    }
+
+    fn char_at(&self, idx: i64) -> Option<char> {
+        let c = string_char_at(self.ptr, idx);
+        if c == 0 { Option::None } else { Option::Some(c) }
+    }
+
+    fn slice(&self, start: i64, end: i64) -> String {
+        String { ptr: string_slice(self.ptr, start, end) }
+    }
+
+    fn concat(&self, other: String) -> String {
+        String { ptr: string_concat(self.ptr, other.ptr) }
+    }
+
+    fn len(&self) -> i64 {
+        string_len(self.ptr)
+    }
+
+    fn eq(&self, other: String) -> bool {
+        string_eq(self.ptr, other.ptr)
+    }
+
+    fn to_str(&self) -> *u8 {
+        // Expose the underlying C string pointer.
+        self.ptr
+    }
+}

@@ -1,0 +1,5 @@
+//! Character utilities
+
+extern "C" fn char_is_whitespace(c: char) -> bool;
+extern "C" fn char_is_digit(c: char) -> bool;
+extern "C" fn char_to_digit(c: char) -> Option<i64>;

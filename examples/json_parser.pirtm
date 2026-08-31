@@ -1,0 +1,213 @@
+use std::option::Option;
+use std::result::Result;
+use std::vec::Vec;
+use std::string::String;
+use std::map::Map;
+use std::char;
+use std::str;
+use std::io::read_file;
+use std::io::print;
+use std::convert::parse_f64;
+use std::convert::f64_to_string;
+
+// ---------- JSON Value Definition ----------
+enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Array(Vec<JsonValue>),
+    Object(Map<String, JsonValue>),
+}
+
+// ---------- Parser State ----------
+struct Parser {
+    input: String,
+    pos: i64,
+}
+
+// ---------- Helper methods on Parser ----------
+impl Parser {
+    fn new(input: String) -> Parser {
+        Parser { input: input, pos: 0 }
+    }
+
+    fn peek(&self) -> Option<char> {
+        if self.pos >= self.input.len() { None } else { self.input.char_at(self.pos) }
+    }
+
+    fn advance(&mut self) {
+        self.pos = self.pos + 1;
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(c) = self.peek() {
+            if char::is_whitespace(c) { self.advance(); } else { break; }
+        }
+    }
+
+    fn consume_literal(&mut self, lit: str) -> bool {
+        let len = str::len(lit);
+        if self.pos + len > self.input.len() { return false; }
+        let s = self.input.slice(self.pos, self.pos + len);
+        if s.to_str() == lit {
+            self.pos = self.pos + len;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn parse_string(&mut self) -> Result<String, str> {
+        self.advance(); // consume opening quote
+        let start = self.pos;
+        while let Some(c) = self.peek() {
+            if c == '"' { break; }
+            if c == '\\' { self.advance(); } // skip escaped char
+            self.advance();
+        }
+        if self.peek() != Some('"') { return Result::Err("unterminated string"); }
+        let end = self.pos;
+        self.advance(); // consume closing quote
+        self.input.slice(start, end)
+    }
+
+    fn parse_number(&mut self) -> Result<f64, str> {
+        let start = self.pos;
+        if self.peek() == Some('-') { self.advance(); }
+        while let Some(c) = self.peek() {
+            if char::is_digit(c) || c == '.' { self.advance(); } else { break; }
+        }
+        let end = self.pos;
+        let num_str = self.input.slice(start, end);
+        parse_f64(num_str.to_str())
+    }
+}
+
+// ---------- Parsing functions using native syntax ----------
+fn parse_value(p: &mut Parser) -> Result<JsonValue, str> {
+    p.skip_whitespace();
+    let c = p.peek();
+    match c {
+        Some('n') => {
+            if !p.consume_literal("null") { return Result::Err("expected null"); }
+            JsonValue::Null
+        }
+        Some('t') => {
+            if !p.consume_literal("true") { return Result::Err("expected true"); }
+            JsonValue::Bool(true)
+        }
+        Some('f') => {
+            if !p.consume_literal("false") { return Result::Err("expected false"); }
+            JsonValue::Bool(false)
+        }
+        Some('"') => {
+            let s = p.parse_string()?;
+            JsonValue::String(s)
+        }
+        Some('[') => {
+            p.advance();
+            p.skip_whitespace();
+            let mut arr = Vec::new();
+            if p.peek() == Some(']') { p.advance(); return JsonValue::Array(arr); }
+            loop {
+                let val = parse_value(p)?;
+                arr.push(val);
+                p.skip_whitespace();
+                if p.peek() == Some(',') {
+                    p.advance();
+                    p.skip_whitespace();
+                } else if p.peek() == Some(']') {
+                    p.advance();
+                    break;
+                } else {
+                    return Result::Err("expected ',' or ']'");
+                }
+            }
+            JsonValue::Array(arr)
+        }
+        Some('{') => {
+            p.advance();
+            p.skip_whitespace();
+            let mut obj = Map::new();
+            if p.peek() == Some('}') { p.advance(); return JsonValue::Object(obj); }
+            loop {
+                // key must be a string
+                let key_val = p.parse_string()?;
+                p.skip_whitespace();
+                if p.peek() != Some(':') { return Result::Err("expected ':'"); }
+                p.advance();
+                p.skip_whitespace();
+                let value = parse_value(p)?;
+                obj.insert(key_val, value);
+                p.skip_whitespace();
+                if p.peek() == Some(',') {
+                    p.advance();
+                    p.skip_whitespace();
+                } else if p.peek() == Some('}') {
+                    p.advance();
+                    break;
+                } else {
+                    return Result::Err("expected ',' or '}'");
+                }
+            }
+            JsonValue::Object(obj)
+        }
+        Some(c) if char::is_digit(c) || c == '-' => {
+            let n = p.parse_number()?;
+            JsonValue::Number(n)
+        }
+        _ => Result::Err("unexpected token"),
+    }
+}
+
+// ---------- Serialization (simplified) ----------
+fn json_to_string(val: JsonValue) -> String {
+    match val {
+        JsonValue::Null => String::from_str("null"),
+        JsonValue::Bool(b) => if b { String::from_str("true") } else { String::from_str("false") },
+        JsonValue::Number(n) => f64_to_string(n),
+        JsonValue::String(s) => {
+            let mut out = String::from_str("\"");
+            out = out.concat(s);
+            out = out.concat(String::from_str("\""));
+            out
+        }
+        JsonValue::Array(arr) => {
+            let mut s = String::from_str("[");
+            let mut first = true;
+            let len = arr.len();
+            let mut i = 0;
+            while i < len {
+                if !first { s = s.concat(String::from_str(", ")); }
+                s = s.concat(json_to_string(arr.get(i).unwrap()));
+                first = false;
+                i = i + 1;
+            }
+            s.concat(String::from_str("]"))
+        }
+        JsonValue::Object(obj) => {
+            // We'll just print a placeholder for objects.
+            String::from_str("{...}")
+        }
+    }
+}
+
+// ---------- Main ----------
+fn main() -> i64 {
+    let input = read_file("input.json");
+    let mut p = Parser::new(input);
+    let result = parse_value(&mut p);
+    match result {
+        Ok(val) => {
+            let output = json_to_string(val);
+            print(output.to_str());
+            0
+        }
+        Err(msg) => {
+            print("Parse error: ");
+            print(msg);
+            1
+        }
+    }
+}
