@@ -1,398 +1,150 @@
-# Contributing to ΛProof
+# Contributing to PIRTM/MOC
 
-Thank you for your interest in contributing to the ΛProof / MTPI / Web4 project! This document provides guidelines for contributing to ensure consistency, quality, and alignment with our core principles.
+Thank you for your interest in contributing to the PIRTM/MOC (Phase Mirror / Multiplicity Object Code) project! This document provides guidelines for contributing to ensure consistency, quality, and alignment with our core principles.
 
 ## 📜 Code of Conduct
 
 ### Core Principles
 
-ΛProof operates under the **Ξ-Constitution** and **MTPI Framework**. All contributions must:
+PIRTM/MOC operates under the **Phase Mirror Governance** methodology. All contributions must:
 
-1. **Preserve Lawful Recursion**: Ξ(t+1) = Ψ(Ξ(t)) must hold
-2. **Maintain Zero Surveillance**: No telemetry, tracking, or profiling
-3. **Respect Sovereignty**: Analog life is sovereign; no coerced digitization
-4. **Enforce Prime-Lawfulness**: Identity must be provably prime-indexed
-5. **Control Semantic Drift**: δ(t) must remain below ε(t) or lawful fork required
+1. **Preserve On-Tree Ground Truth**: Every claim in code or documentation must link to a physically existing, tested artifact on the current tree.
+2. **Maintain Zero Tolerance for Simulation**: No `sorry` in proofs, no simulated telemetry in execution paths, no mock closures in production code.
+3. **Enforce Contractivity Invariants**: All kernel operators must preserve the Small-Gain spectral radius bound ($\rho < 1.0$).
+4. **Respect Grammar Quarantine**: Kernel tokens and application control-flow tokens must remain physically separated at the crate boundary.
+5. **Follow Phase Mirror Methodology**: All non-trivial changes must reference an existing ADR or create one in `docs/`.
 
 ### Expected Behavior
 
 - ✅ Be respectful and inclusive
 - ✅ Provide constructive feedback
-- ✅ Focus on code quality and security
+- ✅ Focus on soundness, minimality, and verifiability
 - ✅ Document your changes thoroughly
 - ✅ Follow established patterns and conventions
-- ✅ Prioritize user privacy and agency
+- ✅ Ensure all tests pass before requesting review
+- ✅ Update ADRs and claim tables when changing behavior
 
 ### Unacceptable Behavior
 
-- ❌ Introducing surveillance or tracking code
+- ❌ Introducing speculative claims without on-tree artifacts
+- ❌ Using `sorry` or mock closures to bypass proof obligations
+- ❌ Breaking the grammar quarantine (mixing kernel/app tokens)
 - ❌ Bypassing security mechanisms
-- ❌ Exposing PII or sensitive data
+- ❌ Committing secrets or keys
 - ❌ Harassment or discriminatory language
 - ❌ Malicious code or backdoors
+
+---
 
 ## 🛠 Development Environment Setup
 
 ### Prerequisites
 
-- **Node.js** ≥ 20.18.0 (managed via package.json `engines`)
-- **pnpm** 10.20.0 (enabled via `corepack enable`)
-- **Rust** 1.81.0 (specified in `rust-toolchain.toml`)
-- **Circom** 2.1.8 (installed via `pnpm toolchain:bootstrap`)
-- **Git** (for version control)
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Rust** | 1.81.0+ | Compiler toolchain for `rust/` crates |
+| **Lean 4** | v4.33.0-rc2 | Formal verification kernel (managed by `elan`) |
+| **Lake** | (bundled with Lean) | Build system for Lean modules |
+| **LLVM** | 17+ (`mlir-translate`, `llc`, `clang`) | Real execution path in `pirtm-engine` |
+| **Git** | 2.40+ | Version control |
 
 ### Initial Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/CitizenGardens-org/Lambda-Proof.git
-cd Lambda-Proof
+# 1. Clone the repository
+git clone https://github.com/PhaseMirror/PiLang.git
+cd PiLang
 
-# Enable corepack (for pnpm)
-corepack enable
+# 2. Install Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
 
-# Install dependencies
-pnpm install
+# 3. Install elan (Lean version manager)
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain none
+source $HOME/.elan/env
 
-# Install circom and other toolchain components
-pnpm toolchain:bootstrap
+# 4. Install pinned Lean toolchain
+elan run leanprover/lean4:v4.33.0-rc2 -- lean --version
 
-# Run preflight checks
-pnpm preflight:quick
+# 5. Build Rust workspace
+cd rust
+cargo build --workspace
+
+# 6. Build Lean kernel
+cd ..
+./build.sh
+
+# 7. Run tests
+cd rust && cargo test --workspace
+cd .. && lake build
 ```
 
 ### Environment Variables
 
-Copy the example environment files:
+Copy the example environment files if present:
 
 ```bash
 cp .env.example .env
-cp .env.sepolia.example .env.sepolia
 ```
 
-Edit these files with your local configuration. **Never commit real secrets**.
+Edit with your local configuration. **Never commit real secrets**.
 
-### Building the Project
+---
+
+## 🔄 Development Workflow
+
+### 1. Choose or Create an ADR
+
+All non-trivial changes must reference an Architecture Decision Record.
+
+- **Existing ADR**: Check `docs/` for relevant ADRs (018–030 currently active/resolved).
+- **New ADR**: Create `docs/ADR-0XX-<topic>.md` with the standard format:
+  ```markdown
+  # ADR-0XX: <Title>
+  - **Status**: Proposed
+  - **Deciders**: Phase Mirror Governance, <role>
+  - **Date**: YYYY-MM-DD
+  ...
+  ```
+
+### 2. Make Changes
+
+Follow the Phase Mirror methodology:
+
+1. **Read the ADR** before changing code.
+2. **Prove before claiming** — Lean proofs must discharge without `sorry`. Rust tests must pass without mocks.
+3. **Update the claim table** — Any change affecting a subsystem's status must update `docs/PIRTM-README-Claim-Table.md` and recompute its SHA-256 hash.
+4. **Sync `artifacts/` with `docs/`** — Changes to ADRs or claim tables must be reflected in both locations.
+
+### 3. Verify Your Changes
+
+Before opening a PR, run the full verification suite:
 
 ```bash
-# Build all packages
-pnpm build
+# Lean build (18 jobs must pass)
+cd /path/to/PiLang
+./build.sh
 
-# Build circuits (requires circom)
-pnpm circuits:build
+# Rust tests
+cd rust
+cargo test --workspace
 
-# Generate Solidity verifiers
-pnpm circuits:verifiers
+# Clippy (Rust linting)
+cargo clippy --workspace -- -D warnings
 
-# Compile smart contracts
-pnpm compile
+# Check for sorry in Lean
+grep -r "sorry" lean/
+# (should return no output)
+
+# Check claim table is up to date
+cd ..
+sha256sum docs/PIRTM-README-Claim-Table.md
+# Compare with the hash in the file header
 ```
 
-### Running Tests
+### 4. Commit and Push
 
-```bash
-# Run all tests
-pnpm test
-
-# Run circuit tests
-pnpm circuits:test
-
-# Run quick circuit tests (smoke tests)
-pnpm circuits:test:quick
-
-# Run smart contract tests
-pnpm -F @mtpi/mtpi-contracts test
-
-# Run with coverage
-pnpm test:coverage
-```
-
-## 📋 Minimal, Auditable Change Strategy
-
-ΛProof follows a **minimal-change philosophy**:
-
-### Before Making Changes
-
-1. **Understand the system**: Read relevant documentation in `docs/`
-2. **Identify scope**: Determine the minimal set of files to modify
-3. **Check existing patterns**: Look for similar changes in git history
-4. **Plan your approach**: Outline changes before implementation
-
-### Making Changes
-
-1. **Keep changes small**: One logical change per PR
-2. **Preserve existing behavior**: Don't break working code unless necessary
-3. **Document your rationale**: Explain why in commit messages and code comments
-4. **Use existing helpers**: Don't reinvent functionality that already exists
-5. **Follow file conventions**: Match existing code style
-
-### After Making Changes
-
-1. **Run linters**: `pnpm lint`
-2. **Run tests**: Verify all tests pass
-3. **Run preflight**: `pnpm preflight:quick` for full validation
-4. **Review your diff**: Use `git diff` to ensure only intended changes are included
-5. **Self-review**: Read your own code as if reviewing someone else's PR
-
-## 🔀 Pull Request Guidelines
-
-### Math-First PR Checklist
-
-In accordance with [**ADR-001**](docs/adr/ADR-001-math-first-contract.md), every PR affecting core logic must satisfy the math-first contract. **A PR without a governing invariant is considered incomplete.**
-
-- [ ] **Invariant Identified**: Name the mathematical invariant this change preserves or extends (e.g., "Spectral stability under prime reindexing").
-- [ ] **Binding Module**: Reference the module in [`MATH_SPINE.md`](docs/MATH_SPINE.md) that owns this invariant.
-- [ ] **Verification State**: State the current verification level for this change:
-    - `[PROVEN]`: Includes/references a machine-checkable proof in `lean4/`.
-    - `[TESTED/CI]`: Includes circuit tests or empirical benchmarks integrated into CI.
-    - `[OPEN]`: Invariant is stated as a specification, but proof/test is pending. **Consult [docs/proof-obligations/](docs/proof-obligations/) for existing briefs.**
-
-### PR Title Format
-
-Use conventional commit format:
-
-```
-<type>(<scope>): <short description>
-
-Examples:
-feat(circuits): add recovery circuit with prime verification
-fix(contracts): resolve reentrancy in MTPI_Core.withdraw
-docs(readme): update installation instructions
-chore(deps): bump circom from 2.1.7 to 2.1.8
-```
-
-**Types**:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style (formatting, no logic change)
-- `refactor`: Code restructuring (no behavior change)
-- `perf`: Performance improvement
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks, dependency updates
-- `security`: Security fixes or improvements
-- `ci`: CI/CD pipeline changes
-
-### PR Description Template
-
-```markdown
-## 📝 Summary
-Brief description of what this PR does.
-
-## 🎯 Motivation
-Why is this change needed? Link to issue if applicable.
-
-## 🔧 Changes Made
-- [ ] List specific changes
-- [ ] One bullet per logical change
-- [ ] Include file paths when helpful
-
-## ✅ Testing
-- [ ] Existing tests pass
-- [ ] New tests added (if applicable)
-- [ ] Manual testing performed
-- [ ] Preflight checks pass
-
-## 📚 Documentation
-- [ ] README updated (if applicable)
-- [ ] Inline comments added for complex logic
-- [ ] API documentation updated (if applicable)
-
-## 🔒 Security Considerations
-- [ ] No PII exposure
-- [ ] No new telemetry/tracking
-- [ ] Secrets properly handled
-- [ ] Reviewed for common vulnerabilities
-
-## 🧩 Checklist
-- [ ] Code follows project style guidelines
-- [ ] Commit messages follow conventional format
-- [ ] Self-reviewed my own code
-- [ ] Requested review from relevant maintainers
-```
-
-### Review Process
-
-1. **Automated Checks**: CI runs linters, tests, and security scans
-2. **Peer Review**: At least one maintainer approval required
-3. **Security Review**: Critical changes require security team review
-4. **Final Checks**: Maintainer verifies compliance with MTPI principles
-
-### Merge Requirements
-
-- ✅ All CI checks passing (green)
-- ✅ At least 1 approving review
-- ✅ No unresolved conversations
-- ✅ Up-to-date with target branch
-- ✅ Conventional commit format
-- ✅ Clean git history (squash if needed)
-
-## 🧪 Testing Requirements
-
-### Test Coverage Targets
-
-- **Core Packages** (`@mtpi/*`): **≥ 80%** coverage
-- **Experimental Packages**: **≥ 60%** coverage
-- **Smart Contracts**: **≥ 90%** coverage (critical paths: 100%)
-- **Circuits**: **100%** constraint coverage (all paths tested)
-
-### Testing Pyramid
-
-```
-                    /\
-                   /  \
-                  / E2E \          <- 5% (smoke tests, integration)
-                 /--------\
-                /  Integ.  \       <- 15% (API, service layer)
-               /------------\
-              /     Unit      \    <- 80% (functions, components)
-             /------------------\
-```
-
-**Unit Tests** (80%):
-- Individual functions and methods
-- Pure logic, no external dependencies
-- Fast execution (< 100ms per test)
-- Deterministic results
-
-**Integration Tests** (15%):
-- API endpoints
-- Service interactions
-- Database operations
-- Circuit-contract integration
-
-**E2E Tests** (5%):
-- Complete user workflows
-- Proof generation → verification → on-chain submission
-- Critical paths only
-
-### Testing Best Practices
-
-```typescript
-// ✅ Good: Descriptive, isolated, fast
-describe('deriveUniquenessAnchor', () => {
-  it('should produce deterministic hash for same inputs', () => {
-    const anchor1 = deriveUniquenessAnchor('issuer', 'subject', 'context', 'salt');
-    const anchor2 = deriveUniquenessAnchor('issuer', 'subject', 'context', 'salt');
-    expect(anchor1).toBe(anchor2);
-  });
-
-  it('should produce different hashes for different subjects', () => {
-    const anchor1 = deriveUniquenessAnchor('issuer', 'subject1', 'context', 'salt');
-    const anchor2 = deriveUniquenessAnchor('issuer', 'subject2', 'context', 'salt');
-    expect(anchor1).not.toBe(anchor2);
-  });
-});
-
-// ❌ Bad: Vague, not isolated, slow
-describe('identity stuff', () => {
-  it('works', async () => {
-    const result = await doEverything();
-    expect(result).toBeTruthy();
-  });
-});
-```
-
-### Circuit Testing
-
-All circuit changes require:
-
-```bash
-# Compile circuits
-pnpm circuits:build
-
-# Run constraint tests
-pnpm circuits:test
-
-# Verify soundness (test edge cases)
-# Example: Test with maximum input sizes, boundary values, invalid inputs
-```
-
-See `docs/ops/docs/ops/CIRCUIT_TESTING_CHECKLIST.md` for comprehensive circuit testing guide.
-
-## 📝 Code Style Guidelines
-
-### TypeScript / JavaScript
-
-```typescript
-// ✅ Use explicit types
-function deriveAnchor(issuer: string, subject: string): string { ... }
-
-// ✅ Use const for immutable values
-const MAX_DRIFT = 0.3;
-
-// ✅ Use descriptive names
-const uniquenessAnchor = deriveUniquenessAnchor(...);
-
-// ✅ Avoid magic numbers
-const SECONDS_PER_DAY = 86400;
-
-// ✅ Comment complex logic
-// Compute HMAC-SHA256 for irreversible identity commitment
-const hmac = createHmac('sha256', salt);
-
-// ❌ Avoid any types
-function process(data: any) { ... } // Bad
-
-// ❌ Don't mutate parameters
-function addItem(list: string[]) {
-  list.push('item'); // Bad - side effect
-}
-```
-
-### Solidity
-
-```solidity
-// ✅ Use explicit visibility
-function verifyProof(uint[2] memory a, ...) public view returns (bool) { ... }
-
-// ✅ Follow naming conventions
-contract MTPI_Core { ... }       // PascalCase for contracts
-function _verifyInternal() private { ... }  // _prefix for private/internal
-uint256 public constant MAX_DRIFT = 30;     // SCREAMING_SNAKE_CASE for constants
-
-// ✅ Use natspec comments
-/// @notice Verifies a zk-SNARK proof
-/// @param proof The proof to verify
-/// @return isValid True if proof is valid
-function verify(Proof memory proof) public view returns (bool isValid) { ... }
-
-// ✅ Check effects interactions (CEI pattern)
-function withdraw() external {
-  // Checks
-  require(balance[msg.sender] > 0, "No balance");
-  
-  // Effects
-  uint256 amount = balance[msg.sender];
-  balance[msg.sender] = 0;
-  
-  // Interactions
-  (bool success, ) = msg.sender.call{value: amount}("");
-  require(success, "Transfer failed");
-}
-```
-
-### Circom
-
-```circom
-// ✅ Use clear signal names
-signal input identityHash;
-signal output isValid;
-
-// ✅ Document constraints
-// Ensure drift is below threshold: drift <= MAX_DRIFT
-component driftCheck = LessThan(8);
-
-// ✅ Use templates for reusable logic
-template PrimeGate() { ... }
-
-// ✅ Add assertions for soundness
-assert(constraint1 + constraint2 == expected);
-```
-
-## 🚀 Commit Message Conventions
-
-### Format
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <subject>
@@ -402,110 +154,213 @@ assert(constraint1 + constraint2 == expected);
 <footer>
 ```
 
-### Examples
+**Types:**
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Formatting, missing semicolons, etc. (no code change)
+- `refactor`: A code change that neither fixes a bug nor adds a feature
+- `perf`: A code change that improves performance
+- `test`: Adding missing tests or correcting existing tests
+- `chore`: Maintenance tasks (dependencies, build, etc.)
+- `adr`: Architecture Decision Record changes
+
+**Examples:**
+```
+feat(compiler): add admissibility validation for prime operators
+
+Implements validate_prime check in AdmissibilityValidator::validate.
+Rejects uncertified prime indices at compile time.
+
+Closes #021
+```
 
 ```
-feat(circuits): add Miller-Rabin primality test circuit
+fix(kernel): restore ZenoController.lean after accidental rewrite
 
-Implements probabilistic primality testing with 40 rounds for
-256-bit primes. Reduces proving time by 30% compared to trial
-division approach.
+git checkout HEAD -- lean/ADR/ZenoController.lean
 
-Closes #123
+Fixes build failure in ADR.ZenoController target.
 ```
 
+---
+
+## 🧪 Testing Requirements
+
+### Test Coverage Targets
+
+| Component | Target | Notes |
+|-----------|--------|-------|
+| **Rust crates** | ≥ 80% | Unit + integration tests |
+| **Lean modules** | 100% proof discharge | Zero `sorry` in `lean/` |
+| **CI gates** | 100% pass rate | No flaky tests |
+
+### Running Tests
+
+```bash
+# All Rust tests
+cargo test --workspace
+
+# Specific crate
+cargo test -p pirtm-parser
+
+# With output
+cargo test -p pirtm-engine -- --nocapture
+
+# Lean build verification
+./build.sh
 ```
-fix(contracts): prevent reentrancy in MTPI_Core.claimMembership
 
-Adds nonReentrant modifier to claimMembership function to prevent
-reentrancy attacks during SBT minting.
+### Writing Tests
 
-BREAKING CHANGE: claimMembership now requires CEI pattern
+- **Rust**: Place tests in `tests/` directory or inline `#[cfg(test)]` modules.
+- **Lean**: Add theorems to `lean/ADR/Test.lean` using the existing pattern (`by decide`, `constructor <;> rfl`, etc.).
+
+---
+
+## 📝 Code Style Guidelines
+
+### Rust
+
+```rust
+// ✅ Use explicit types for public APIs
+pub fn validate_prime(&self, n: u64) -> Result<(), String> { ... }
+
+// ✅ Use descriptive names
+let contractivity_receipt = spectral::validate_and_certify(&ensemble, 1e-6)?;
+
+// ✅ Avoid magic numbers
+const KILL_THRESHOLD: f64 = 1.05;
+
+// ✅ Comment complex logic
+// Compute spectral radius via power iteration for non-negative matrices
+let rho = spectral_radius_power(&g, 1000, 1e-7)?;
+
+// ❌ Avoid unwrap in production code
+let x = data.unwrap(); // Bad
+
+// ❌ Don't use simulated telemetry in non-dry-run paths
+let metrics = telemetry::simulate_telemetry_collection(); // Bad outside dry_run
 ```
 
-### Commit Best Practices
+### Lean
 
-- **One logical change per commit**: Easy to review and revert
-- **Present tense**: "Add feature" not "Added feature"
-- **Imperative mood**: "Fix bug" not "Fixes bug"
-- **Reference issues**: Use "Closes #123" or "Refs #456"
-- **Explain why**: Focus on motivation, not just what changed
+```lean
+-- ✅ Every definition has doc comments
+/-! ## Local Order Lemmas for Rat (Zero-Mathlib) -/
+theorem sub_nonneg_of_le {a b : Rat} (h : a ≤ b) : (0 : Rat) ≤ b - a := by ...
+
+-- ✅ Use inductive for state machines
+inductive ADRStatus where
+  | Proposed | Accepted | Deprecated | Superseded
+
+-- ✅ Use structure for records
+structure ADR where
+  id : ADRId
+  title : String
+  status : ADRStatus
+  ...
+
+-- ❌ No sorry in proofs
+theorem foo : True := by
+  sorry  -- Bad
+
+-- ✅ Complete proofs only
+theorem foo : True := by
+  trivial
+```
+
+---
 
 ## 🔐 Security Checklist
 
 Before submitting, verify:
 
 - [ ] No secrets or API keys committed
-- [ ] No PII (names, emails, addresses) in code or tests
+- [ ] No PII in code or tests
 - [ ] No new telemetry or tracking code
 - [ ] Input validation on all user-provided data
 - [ ] Proper error handling (no sensitive info in error messages)
 - [ ] Access control checks on privileged functions
-- [ ] Reentrancy protection on state-changing functions
-- [ ] Integer overflow/underflow checks (or use SafeMath)
-- [ ] Gas optimizations don't compromise security
-- [ ] Circuit constraints enforce all required properties
+- [ ] No float literals used as stability proofs
+- [ ] No unbounded loops without explicit bound annotations
+- [ ] All prime operators validated with `validate_prime`
+- [ ] `simulate_telemetry_collection` only in `--dry-run` branches
+
+---
 
 ## 📚 Documentation Standards
 
-### Code Comments
+### ADR Format
 
-```typescript
-/**
- * Derives an irreversible uniqueness anchor from verified identity.
- * 
- * This implements the commit phase of the commit-reveal identity model.
- * The anchor is computed as HMAC-SHA256(salt, issuer:subject:context),
- * ensuring that:
- * - Same identity always produces same anchor (deterministic)
- * - Different identities produce different anchors (collision-resistant)
- * - Anchor cannot be reversed to reveal identity (preimage-resistant)
- * 
- * @param issuerId - Stable issuer identifier (e.g., 'us-bank-abc')
- * @param subjectId - Verified subject ID from issuer (NOT raw PII)
- * @param context - Purpose context (e.g., 'membership')
- * @param salt - High-entropy secret (32+ bytes, base64-encoded)
- * @returns 0x-prefixed hex anchor hash (32 bytes)
- * 
- * @example
- * const anchor = deriveUniquenessAnchor(
- *   'us-bank-abc',
- *   'user-stable-id-123',
- *   'membership',
- *   process.env.UNIQUENESS_SALT_DEFAULT!
- * );
- */
-export function deriveUniquenessAnchor(
-  issuerId: string,
-  subjectId: string,
-  context: string,
-  salt: string
-): string {
-  // Implementation...
-}
+All ADRs must follow this structure:
+
+```markdown
+# ADR-0XX: <Title>
+
+- **Status**: Proposed | Accepted | Resolved | Deprecated
+- **Deciders**: Phase Mirror Governance, <role>
+- **Date**: YYYY-MM-DD
+
+## Context
+
+...
+
+## Hidden Assumption
+
+...
+
+## Decision
+
+1. **<Action>**: ...
+
+## Consequences
+
+- ...
 ```
 
-### README Structure
+### Claim Table Updates
 
-Each package should have a README with:
+When changing a subsystem's status:
 
-1. **Overview**: What the package does (2-3 sentences)
-2. **Installation**: How to install and set up
-3. **Usage**: Basic examples
-4. **API Reference**: Public functions and types
-5. **Security**: Relevant security considerations
-6. **License**: License information
+1. Update `docs/PIRTM-README-Claim-Table.md`
+2. Recompute SHA-256: `sha256sum docs/PIRTM-README-Claim-Table.md`
+3. Update the hash in the file header
+4. Sync to `artifacts/PIRTM-README-Claim-Table.md`
+
+---
+
+## 🔀 Pull Request Process
+
+1. **Ensure CI passes**: All checks in `.github/workflows/sedona_spine_ci.yml` must be green.
+2. **Update documentation**: README, claim table, ADRs, and USER_GUIDE as needed.
+3. **Request review**: At least one maintainer approval required.
+4. **Address feedback**: Respond to all review comments before merge.
+5. **Squash and merge**: Maintain a clean git history.
+
+### Merge Requirements
+
+- ✅ All CI checks passing (green)
+- ✅ At least 1 approving review
+- ✅ No unresolved conversations
+- ✅ Up-to-date with target branch
+- ✅ Conventional commit format
+- ✅ ADR status updated if applicable
+
+---
 
 ## 🆘 Getting Help
 
-- **Questions**: Open a [GitHub Discussion](https://github.com/CitizenGardens-org/Lambda-Proof/discussions)
-- **Bugs**: Report via [GitHub Issues](https://github.com/CitizenGardens-org/Lambda-Proof/issues)
-- **Security**: Email security@citizengardens.org (do NOT open public issue)
-- **Chat**: Join our community (link TBD)
+- **Questions**: Open a [GitHub Discussion](https://github.com/PhaseMirror/PiLang/discussions)
+- **Bugs**: Report via [GitHub Issues](https://github.com/PhaseMirror/PiLang/issues)
+- **Security**: Email security@phasemirror.com (do NOT open public issue)
+- **Documentation**: See [USER_GUIDE.md](USER_GUIDE.md) for comprehensive usage examples
+
+---
 
 ## 📜 License
 
-By contributing to ΛProof, you agree that your contributions will be licensed under the **Ξ-License v1.0** (see LICENSE.txt).
+By contributing to PIRTM/MOC, you agree that your contributions will be licensed under the **Prime Materia Open Commons and Bound Works License v1.0** (see [LICENSE](LICENSE)).
 
 Key provisions:
 - No deployment, modification, or use is lawful unless Ξ(t+1) = Ψ(Ξ(t))
@@ -514,6 +369,4 @@ Key provisions:
 
 ---
 
-**Thank you for contributing to ΛProof!** 🚀
-
-*Last Updated: 2025-11-15*
+*Last Updated: 2026-09-01*
