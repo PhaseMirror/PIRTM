@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { PLAYGROUND_PRESETS, PlaygroundPreset } from '@/lib/pirtm-data';
 import { compileAndRunPirtm, CompilationResult } from '@/lib/compiler-engine';
+import { loadPirtmWasm } from '@/lib/wasm-loader';
 
 interface PlaygroundViewProps {
   initialPresetId?: string;
@@ -32,10 +33,15 @@ export function PlaygroundView({ initialPresetId }: PlaygroundViewProps) {
   const [sourceCode, setSourceCode] = useState<string>(defaultPreset.code);
   const [activeTab, setActiveTab] = useState<'mlir' | 'audit' | 'logs' | 'ast'>('mlir');
   const [isCompiling, setIsCompiling] = useState(false);
+  const [isWasmLoaded, setIsWasmLoaded] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [result, setResult] = useState<CompilationResult>(() => compileAndRunPirtm(defaultPreset.code));
 
   const [prevPresetId, setPrevPresetId] = useState(initialPresetId);
+
+  useEffect(() => {
+    loadPirtmWasm().then(() => setIsWasmLoaded(true));
+  }, []);
 
   if (initialPresetId !== prevPresetId) {
     setPrevPresetId(initialPresetId);
@@ -51,13 +57,14 @@ export function PlaygroundView({ initialPresetId }: PlaygroundViewProps) {
     setResult(compileAndRunPirtm(preset.code));
   };
 
-  const handleCompileAndRun = () => {
+  const handleCompileAndRun = async () => {
     setIsCompiling(true);
+    const wasm = await loadPirtmWasm();
     setTimeout(() => {
-      const res = compileAndRunPirtm(sourceCode);
+      const res = wasm.compile(sourceCode);
       setResult(res);
       setIsCompiling(false);
-    }, 150);
+    }, 120);
   };
 
   const handleSimulateViolation = () => {

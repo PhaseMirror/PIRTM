@@ -1,0 +1,41 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{utf8}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{\textbf{PIRTM: Formal Foundations and Governance-as-Compilation for Lawful State Evolution}}
+\author{\textbf{Phase Mirror Engineering Core \& Formal Methods Team}}
+\date{September 1, 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present the Multiplicity Sovereign Core (PIRTM), a formally verified architecture for governance-as-compilation. State transitions $\Xi(t+1) = \Psi(\Xi(t))$ are bound by dynamic spectral contractivity constraints ($\rho(A) < 1.0$), prime-indexed phase dissonance functionals, and protocol-level Conscious Sovereignty Layer (CSL) firewalls. The implementation couples a zero-Mathlib, zero-\texttt{sorry} Lean 4 proof suite across 45 Architecture Decision Records (ADRs 001--045) with Kani-verified Rust engines and a WASM/MCP governed web toolchain.
+\end{abstract}
+
+\section{Introduction}
+Modern high-assurance software systems mandate zero-drift compliance guarantees. The Sedona Spine substrate enforces the \textit{Path of Integrity}: $\text{Engine (Rust)} \rightarrow \text{CompilationResult} \rightarrow \text{UnifiedWitness} \rightarrow \text{Ledger Anchor} \rightarrow \text{UI/Agent}$.
+
+\section{Mathematical Foundations}
+\subsection{Spectral Radius Gate}
+State trajectories remain strictly contractive under small-gain limits:
+\begin{equation}
+\rho(A) = \max_{i} |\lambda_i| < 1.0
+\end{equation}
+
+\subsection{Phase Dissonance Functional}
+Governance dissonance across multi-artifact state histories is evaluated via:
+\begin{equation}
+D(\Phi_t) = \sum_{p \in \mathbb{P}} w_p \cdot \delta_p(t)
+\end{equation}
+
+\section{Formal Verification and Toolchain Architecture}
+The system unifies Lean 4 kernel proofs, Kani bounded model checking, and MLIR compiler lowering into an auditable web application (\texttt{pirtm-governed-toolchain}).
+
+\end{document}
