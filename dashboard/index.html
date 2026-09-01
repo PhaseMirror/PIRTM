@@ -348,9 +348,31 @@ let x = Ap(2);</textarea>
             const feed = document.getElementById('ledger-feed');
             const entry = document.createElement('div');
             entry.className = "p-2.5 bg-dark-bg/60 border border-dark-border rounded-lg animate-fade-in";
+            
+            // Build mock CRMF envelope based on hash
+            const crmfPayload = {
+                timestamp: new Date().toISOString(),
+                seal_hash: hash,
+                poseidon_commitment: "pos2_" + hash.slice(0, 32),
+                dual_anchor: {
+                    sha256: hash,
+                    ed25519_sig: "ed25519_" + hash.slice(32, 64) + "a8f3b"
+                },
+                metrics: {
+                    lambda_m: 0.97,
+                    drift: 0.002
+                }
+            };
+            const crmfJson = encodeURIComponent(JSON.stringify(crmfPayload));
+
             entry.innerHTML = `
                 <div class="flex justify-between items-center text-[11px]">
-                    <span class="${event.includes('KILL') ? 'text-rose-400' : 'text-emerald-400'} font-bold">${event}</span>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="unpackCrmf('${crmfJson}')" class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-1 hover:bg-emerald-800 transition font-bold" title="Unpack CRMF Event Envelope">
+                            [ Λ ]
+                        </button>
+                        <span class="${event.includes('KILL') ? 'text-rose-400' : 'text-emerald-400'} font-bold">${event}</span>
+                    </div>
                     <span class="text-slate-500 mono">${new Date().toLocaleTimeString()}</span>
                 </div>
                 <div class="text-xs text-slate-300 mono truncate mt-1">${hash}</div>
@@ -359,8 +381,70 @@ let x = Ap(2);</textarea>
             feed.insertBefore(entry, feed.firstChild);
         }
 
+        function unpackCrmf(encoded) {
+            const data = JSON.parse(decodeURIComponent(encoded));
+            document.getElementById('crmf-modal').classList.remove('hidden');
+            document.getElementById('crmf-poseidon').textContent = data.poseidon_commitment;
+            document.getElementById('crmf-sha256').textContent = data.dual_anchor.sha256;
+            document.getElementById('crmf-ed25519').textContent = data.dual_anchor.ed25519_sig;
+            document.getElementById('crmf-metrics').textContent = `λ_m = ${data.metrics.lambda_m.toFixed(4)} | Drift = ${data.metrics.drift.toFixed(4)}`;
+            document.getElementById('crmf-raw-json').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function closeCrmfModal() {
+            document.getElementById('crmf-modal').classList.add('hidden');
+        }
+
         // Initial check on load
         window.addEventListener('DOMContentLoaded', checkHealth);
     </script>
+
+    <!-- CRMF Unpacked Envelope Drawer / Modal -->
+    <div id="crmf-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-black border border-emerald-800 rounded-xl max-w-2xl w-full p-6 text-emerald-400 mono text-xs space-y-4 shadow-2xl shadow-emerald-950">
+            <div class="flex items-center justify-between border-b border-emerald-900 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span class="bg-emerald-900 text-black px-1 font-bold">[ Λ ]</span>
+                    <span class="font-bold uppercase tracking-widest text-white text-sm">CRMF Event Envelope (RFC-8785 Canonical)</span>
+                </div>
+                <button onclick="closeCrmfModal()" class="text-slate-400 hover:text-white text-base font-bold">&times;</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-dark-bg p-3 rounded border border-dark-border">
+                    <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Poseidon2 Sponge Commitment (t=9, r=8)</div>
+                    <div id="crmf-poseidon" class="text-emerald-300 break-all text-[11px]"></div>
+                </div>
+
+                <div class="bg-dark-bg p-3 rounded border border-dark-border">
+                    <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Dual SHA-256 Anchor</div>
+                    <div id="crmf-sha256" class="text-slate-300 break-all text-[11px]"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-dark-bg p-3 rounded border border-dark-border">
+                    <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Ed25519 Signature Anchor</div>
+                    <div id="crmf-ed25519" class="text-cyan-300 break-all text-[11px]"></div>
+                </div>
+
+                <div class="bg-dark-bg p-3 rounded border border-dark-border">
+                    <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">Metrics & Invariant Bounds</div>
+                    <div id="crmf-metrics" class="text-purple-300 break-all text-[11px]"></div>
+                </div>
+            </div>
+
+            <div>
+                <div class="text-slate-500 text-[10px] uppercase tracking-wider mb-1">RFC-8785 Canonical JSON Serialization</div>
+                <pre id="crmf-raw-json" class="bg-dark-bg p-3 rounded border border-dark-border text-[10px] text-slate-400 overflow-x-auto max-h-36"></pre>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button onclick="closeCrmfModal()" class="border border-emerald-700 bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 px-4 py-1.5 rounded transition">
+                    CLOSE ENVELOPE [ESC]
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

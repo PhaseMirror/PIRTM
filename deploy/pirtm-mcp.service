@@ -1,16 +1,27 @@
 [Unit]
-Description=PIRTM Model Context Protocol (MCP) Governance Daemon
+Description=PIRTM Model Context Protocol (MCP) Daemon
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=citizen
-WorkingDirectory=/media/citizen/b361d448-7c51-413a-aa23-9515cb626930/home/citizen/Multiplicity/PiLang
-ExecStart=/media/citizen/b361d448-7c51-413a-aa23-9515cb626930/home/citizen/Multiplicity/PiLang/rust/target/release/pirtm mcp start --transport tcp --port 8090
+User=pirtm_daemon
+Group=pirtm_daemon
+WorkingDirectory=/app
+# Executes the release binary bound to the local TCP port for the cPanel proxy
+ExecStart=/usr/local/bin/pirtm mcp start --transport tcp --port 8090
 Restart=always
 RestartSec=5
-Environment=RUST_BACKTRACE=1
-Environment=PIRTM_LOG=info
+
+# Environment Configuration
+Environment="RUST_BACKTRACE=1"
+Environment="PIRTM_LOG=info"
+
+# Security Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
