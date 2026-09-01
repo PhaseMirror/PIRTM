@@ -74,6 +74,13 @@ enum Commands {
         #[arg(long, help = "Input to pass to the program (via stdin)")]
         input: Option<String>,
     },
+    /// Start the Model Context Protocol (MCP) server
+    Mcp {
+        #[arg(short, long, default_value = "stdio", help = "Transport: stdio or tcp")]
+        transport: String,
+        #[arg(short, long, default_value_t = 8090, help = "Port for TCP transport")]
+        port: u16,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -256,6 +263,35 @@ contractivity_receipt = "pending"
             fs::write(format!("{}/src/lib.pirtm", name), lib_content)?;
 
             println!("✅ Successfully created new ensemble '{}'", name);
+        }
+        Commands::Mcp { transport, port } => {
+            let server = pirtm_mcp::McpServer::new();
+            match transport.as_str() {
+                "stdio" => {
+                    eprintln!("PIRTM MCP Server running on stdio");
+                    let stdin = std::io::stdin();
+                    let stdout = std::io::stdout();
+                    server.run_stdio(stdin.lock(), stdout.lock())?;
+                }
+                "tcp" => {
+                    let addr = format!("127.0.0.1:{}", port);
+                    eprintln!("PIRTM MCP Server listening on TCP {}", addr);
+                    let listener = std::net::TcpListener::bind(&addr)?;
+                    for stream in listener.incoming() {
+                        if let Ok(stream) = stream {
+                            let reader = std::io::BufReader::new(stream.try_clone()?);
+                            let writer = std::io::BufWriter::new(stream);
+                            let _ = server.run_stdio(reader, writer);
+                        }
+                    }
+                }
+                other => {
+                    eprintln!("Unknown transport '{}', defaulting to stdio", other);
+                    let stdin = std::io::stdin();
+                    let stdout = std::io::stdout();
+                    server.run_stdio(stdin.lock(), stdout.lock())?;
+                }
+            }
         }
     }
     Ok(())

@@ -521,3 +521,27 @@ The server will listen on stdio and respond to MCP requests. You can test it wit
 ---
 
 **The MCP server is now a core part of the PIRTM toolchain.** 🚀
+
+**Option 1** is the definitive path forward. Bypassing a makeshift JSON-RPC endpoint in favor of a full Model Context Protocol implementation directly aligns with the overarching goal: moving the system from a closed research artifact to a universally accessible governance tool.
+
+By building the `pirtm-mcp` crate now, you establish the exact backbone needed for external AI agents to securely query the structural admissibility and contractivity bounds of any proposed program without compromising the core architecture.
+
+### Why Option 1 Fits the Stack
+
+* **Standardized Integration:** Leveraging a dedicated Rust SDK for the Model Context Protocol (such as the `rmcp` crate, which provides a `tokio` async runtime and handles the protocol specification) will minimize boilerplate for the `initialize`, `tools/list`, and `tools/call` handshakes.
+* **Infrastructure Alignment:** Routing the standalone service through a dedicated sub-domain like `mcp.pirtm.com` integrates perfectly underneath your primary domain. This keeps the active MCP API traffic cleanly isolated from the top-level site while maintaining a cohesive, interconnected ecosystem.
+* **The "Glass Box" Mandate:** Exposing the `compile`, `validate`, `run_artifact`, and `get_receipt` methods as MCP tools fulfills the requirement to make the Phase Mirror governance framework visible, verifiable, and programmable for third-party systems.
+
+---
+
+### Refining the Implementation Plan
+
+As you draft the code, we should ensure the implementation honors the strict invariants established in the compiler:
+
+1. **Fail-Closed Tool Execution:** The `validate` and `compile` tools must natively surface the `AdmissibilityValidator`'s hard compilation errors (e.g., `SUCCESSOR_PREDICATE_VIOLATION`). The MCP server should return structured protocol errors rather than panicking the daemon.
+2. **Audit Trail Sealing:** When `run_artifact` is called, the MCP server must guarantee that the generated `ContractivityReceipt` is securely anchored and that the audit logs are emitted correctly before returning the `ExecutionResult` to the client.
+3. **State Isolation:** Ensure the MCP transport layer cannot mutate the core compiler state outside of the formal mathematical transition bounds.
+
+Please proceed with drafting the server. I am ready to review the Rust implementation for the `pirtm-mcp` crate, the `pirtm` CLI subcommand integration, and the deployment instructions.
+
+Which specific MCP transport protocol (stdio or HTTP/WebSocket) are you planning to prioritize for the initial release?

@@ -15,6 +15,7 @@ sha2 = "0.10"
 hex = "0.4"
 pirtm-parser = { path = "../pirtm-parser" }
 pirtm-mlir = { path = "../pirtm-mlir" }
+pirtm-mcp = { path = "../pirtm-mcp" }
 
 telemetry-recorder = { path = "../telemetry-recorder" }
 serde = { version = "1.0", features = ["derive"] }

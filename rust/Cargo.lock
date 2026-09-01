@@ -668,6 +668,7 @@ dependencies = [
  "clap",
  "hex",
  "pirtm-engine",
+ "pirtm-mcp",
  "pirtm-mlir",
  "pirtm-monitor",
  "pirtm-parser",
@@ -704,6 +705,22 @@ name = "pirtm-lexer"
 version = "1.0.0-alpha"
 dependencies = [
  "logos",
+]
+
+[[package]]
+name = "pirtm-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "pirtm-engine",
+ "pirtm-mlir",
+ "pirtm-parser",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
