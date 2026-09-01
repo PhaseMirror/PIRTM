@@ -1,0 +1,14 @@
+[package]
+name = "pirtm-web-sdk"
+version = "1.0.0-alpha"
+edition = "2021"
+description = "Governed WebAssembly SDK and Component Builder for PIRTM"
+authors = ["Phase Mirror Contributors"]
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { version = "1.37", features = ["full", "process"] }

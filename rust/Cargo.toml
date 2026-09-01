@@ -11,7 +11,17 @@ members = [
     "pirtm-monitor",
     "pirtm-engine",
     "pirtm-mcp",
-    "pirtm-telemetry"
+    "pirtm-telemetry",
+    "pirtm-invariants",
+    "pirtm-tensor",
+    # Integrated from Foundry/packages/rust — see ADR-031
+    "adr_rust",
+    "adr-verifier",
+    "pirtm-registry",
+    "pirtm-dist",
+    "pirtm-orchestration",
+    "pirtm-tools",
+    "pirtm-web-sdk",
 ]
 resolver = "2"
 
@@ -40,3 +50,10 @@ lean-rs = "0.4"
 lean-rs-host = "0.4"
 lean-toolchain = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
+# Dependencies added for Foundry integration (ADR-031)
+num-prime = "0.4"
+itertools = "0.13"
+clap = { version = "4.4", features = ["derive"] }
+rustyline = "14.0"
+tower-lsp = "0.20.0"
+tokio = { version = "1", features = ["full"] }

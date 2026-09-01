@@ -1,0 +1,19 @@
+[package]
+name = "adr_rust"
+version = "0.2.0"
+edition = "2021"
+description = "ADR governance system with Euclidean multiplicity verification (Rust/Kani)"
+license = "MIT"
+rust-version = "1.70"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+num-prime = "0.4"
+itertools = "0.13"
+
+[dev-dependencies]
+proptest = { version = "1.4", features = ["std"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

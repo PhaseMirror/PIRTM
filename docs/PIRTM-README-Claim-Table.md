@@ -1,7 +1,7 @@
 # PIRTM Grounded Status & Claim Table
 
 **Last Audited:** 2026-09-01  
-**Audit SHA-256:** `acbe958fb1ecae708c731e4ab24fb8580934f901a7a355f80b5291d461f5f1c8`
+**Audit SHA-256:** `39b37b7d6afaa96b7c807a95b83bdfbfe1dec87fc069ff7e1eccdf1d7f2134b8`
 
 This table reflects the ground-truth status of all PIRTM/MOC components, replacing aspirational statements with verifiable status indicators. Every "✅ Complete" claim must link to an existing, verifiable test or physical artifact on tree.
 
@@ -22,6 +22,13 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Grammar Quarantine (ADR-014)** | Kernel Purity | ✅ Complete | Separate `pirtm-kernel-lexer` and `pirtm-app-lexer` strictly enforce isolation (ADR-023) |
 | **Admissibility Validator** | Governance Gate | ✅ Complete | `AdmissibilityValidator::validate` rejects float literals, unbounded loops, and uncertified primes (ADR-021) |
 | **Toolchain Lock** | Zero Drift | ✅ Complete | `fixedToolchain: true` in `lake-manifest.json`; CI verifies `lean --version` matches `lean-toolchain` (ADR-024) |
+| **ADR Governance System (Rust/Kani)** | Dual-Verified Governance | ✅ Complete | `cargo test -p adr_rust` (4 tests: immutability, cycle detection, history, examples) |
+| **ADR Registry Verifier & Kernel Boundary** | Zero-Drift Gate | ✅ Complete | `cargo test -p adr-verifier` (8 tests: structural + boundary guard) |
+| **Governed Ensemble Registry** | Contraction + Resonance Gate | ✅ Complete | `cargo test -p pirtm-registry` (2 tests: publish accept/reject) |
+| **Distribution Ledger** | Invariant-Gated Install | ✅ Complete | `cargo test -p pirtm-dist` (2 tests: install valid/unlawful) |
+| **CRMF Orchestration** | Hardware-Tensor Binding | ✅ Complete | `cargo test -p pirtm-orchestration` (1 test: CRMF request) |
+| **REPL + LSP Developer Tools** | Real-Time Gate Feedback | ✅ Complete | `cargo build -p pirtm-tools`; LSP diagnostics on `scf`/`func` ops |
+| **WebAssembly SDK Builder** | WASM Compilation Bridge | ⏳ In Progress | `pirtm-web-sdk` binary compiles via `cargo build`; requires `emcc`+`lake` for `build` subcommand |
 
 ## Legend
 

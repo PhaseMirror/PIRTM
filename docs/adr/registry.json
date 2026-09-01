@@ -1,0 +1,12 @@
+{"version":"1.0.0","adrs":[
+{"id":"ADR-001","title":"Establish Foundation ADR","status":"Superseded","context":"Phase Mirror initialization","decision":"Base framework","consequences":["Foundation established"],"supersedes":null,"links":[]},
+{"id":"ADR-002","title":"Adopt Rust ADR Governance","status":"Accepted","context":"Rust memory safety","decision":"Use Rust","consequences":["memory safety"],"supersedes":"ADR-001","links":[]},
+{"id":"ADR-003","title":"Lean 4 Formalization","status":"Accepted","context":"Mathematical rigor","decision":"Lean 4","consequences":["theorem proving"],"supersedes":null,"links":[]},
+{"id":"ADR-004","title":"PIRTM Compiler Architecture","status":"Accepted","context":"Compiler design","decision":"MLIR backend","consequences":["mlir backend"]},
+{"id":"ADR-005","title":"Grammar Quarantine","status":"Accepted","context":"Token separation","decision":"Kernel/app lexer split","consequences":["lexer split"]},
+{"id":"ADR-006","title":"Toolchain Locking","status":"Accepted","context":"Reproducible builds","decision":"Fixed toolchain","consequences":["zero drift"]},
+{"id":"ADR-007","title":"Metric Unit Unification","status":"Accepted","context":"Unit consistency","decision":"Rational arithmetic","consequences":["rational types"]},
+{"id":"ADR-008","title":"Admissibility Validation","status":"Accepted","context":"Governance gate","decision":"Reject floats and unbounded loops","consequences":["float rejected"]},
+{"id":"ADR-009","title":"Harmonia Interface","status":"Accepted","context":"Interface design","decision":"Harmonia module","consequences":["harmonia"]},
+{"id":"ADR-010","title":"Bounded Iteration","status":"Accepted","context":"Loop safety","decision":"Bounded for loops","consequences":["bounded loops"]}
+]}
