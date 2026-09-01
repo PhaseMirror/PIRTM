@@ -125,6 +125,7 @@ PiLang/
 - **[ADR-015: Reject False Delivery Packs](docs/ADR-015-Reject-False-Delivery-Pack.md)**: Mandates strict on-tree physical verification.
 - **[ADR-016: Bounded Iteration & Control Flow](docs/ADR-016-Bounded-Iteration-Control-Flow.md)**: Formal proofs for loops, branches, and function composition.
 - **[ADR-017: MLIR Lowering Soundness](docs/ADR-017-Lowering-Soundness.md)**: Machine-checked metric preservation proofs for memory mutation and MLIR emission.
+- **[Defensive Publication Whitepaper](docs/DEFENSIVE_PUBLICATION_GOVERNANCE_AS_COMPILATION.md)**: Formal prior art disclosure for Governance-as-Compilation.
 - **[Axiom & Enforcement Ledger](docs/PIRTM-axiom-ledger.md)**: Complete tracking of proof obligations (`AX-001`–`AX-003`) and enforcement mechanisms (`ENF-001`–`ENF-003`).
 - **[Grounded Claim Table](docs/PIRTM-README-Claim-Table.md)**: Full claim-by-claim verification table.
 
