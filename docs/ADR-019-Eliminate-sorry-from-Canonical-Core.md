@@ -1,8 +1,9 @@
 # ADR-019: Eliminate sorry from Canonical Core & Lock CI Gate Semantics
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+
 
 ## Context
 

@@ -1,10 +1,16 @@
 name = "PiLang"
 version = "0.1.0"
-defaultTargets = ["ADR"]
+defaultTargets = ["ADR", "prime_tensors", "PIRTM"]
 srcDir = "lean"
 
 [[lean_lib]]
 name = "ADR"
+
+[[lean_lib]]
+name = "prime_tensors"
+
+[[lean_lib]]
+name = "PIRTM"
 
 [[lean_exe]]
 name = "test"

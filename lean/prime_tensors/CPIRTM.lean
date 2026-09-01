@@ -26,7 +26,6 @@ def IsContractive (op : List Nat → List Nat) : Prop :=
 structure CPIRTMKernel where
   op : List Nat → List Nat
   contractive : IsContractive op
-  deriving Repr
 
 /-- Construct a CPIRTM kernel from a contractive operator. -/
 def mkCPIRTM (op : List Nat → List Nat) (h : IsContractive op) : CPIRTMKernel :=

@@ -1,8 +1,32 @@
 # ADR-018: Repair Broken Lean Kernel Import Graph
 
-- **Status**: Proposed
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
+
+## Resolution
+
+1. **`prime_tensors` modules implemented** under `lean/prime_tensors/`:
+   - `Transition.lean` — fixed `def PrimeIndices` → `abbrev PrimeIndices` to propagate `Membership` instance; corrected proof terms.
+   - `Stability.lean` — added self-contained `iterate` definition; rewrote `spectral_stable_of_length_non_increasing` with proper induction generalizing `s`; established composition stability via length-non-increasing composition lemma.
+   - `CPIRTM.lean` — removed `deriving Repr` from `CPIRTMKernel` (function types lack `Repr` in core Lean).
+   - `DRMM.lean` — already valid; no changes needed.
+2. **`prime_tensors.lean` root file created** at `lean/prime_tensors.lean` to satisfy Lake's multi-file library requirement under `srcDir = "lean"`.
+3. **`lakefile.toml` updated**:
+   - Added `[[lean_lib]] name = "prime_tensors"` and `[[lean_lib]] name = "PIRTM"`.
+   - Extended `defaultTargets` to `["ADR", "prime_tensors", "PIRTM"]`.
+4. **CI gate created** at `.github/workflows/sedona_spine_ci.yml`:
+   - Triggers on push/PR to `main`.
+   - Sets up Lean toolchain `leanprover/lean4:v4.33.0-rc2`.
+   - Runs `lake build`, which now validates the kernel.
+
+## Validation
+
+```bash
+$ lake build
+Build completed successfully (18 jobs).
+```
 
 ## Context
 

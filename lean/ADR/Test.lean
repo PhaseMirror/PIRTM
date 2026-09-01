@@ -5,6 +5,8 @@ import ADR.Examples
 
 namespace ADR
 
+set_option maxRecDepth 200000
+
 /-! ## Basic Construction Tests -/
 
 /--
@@ -14,11 +16,7 @@ theorem example_adrs_have_unique_ids :
     adr1001.id ≠ adr1002.id ∧
     adr1001.id ≠ adr1003.id ∧
     adr1002.id ≠ adr1003.id := by
-  constructor
-  · simp
-  · constructor
-    · simp
-    · simp
+  decide
 
 /--
 Accepted ADRs have non-empty titles.
@@ -27,11 +25,7 @@ theorem example_accepted_adrs_have_titles :
     adr1001.title.length > 0 ∧
     adr1002.title.length > 0 ∧
     adr1003.title.length > 0 := by
-  constructor
-  · simp
-  · constructor
-    · simp
-    · simp
+  decide
 
 /--
 Accepted ADRs have non-empty context.
@@ -40,11 +34,7 @@ theorem example_accepted_adrs_have_context :
     adr1001.context.length > 0 ∧
     adr1002.context.length > 0 ∧
     adr1003.context.length > 0 := by
-  constructor
-  · simp
-  · constructor
-    · simp
-    · simp
+  decide
 
 /--
 Accepted ADRs have non-empty decision.
@@ -53,11 +43,7 @@ theorem example_accepted_adrs_have_decision :
     adr1001.decision.length > 0 ∧
     adr1002.decision.length > 0 ∧
     adr1003.decision.length > 0 := by
-  constructor
-  · simp
-  · constructor
-    · simp
-    · simp
+  decide
 
 /-! ## Status Transition Tests -/
 
@@ -65,19 +51,33 @@ theorem example_accepted_adrs_have_decision :
 An ADR in `Accepted` status that remains `Accepted` cannot be `Proposed`.
 -/
 theorem accepted_stays_not_proposed :
-    accepted_cannot_revert_to_proposed
-      ADRStatus.Accepted ADRStatus.Accepted none
-      rfl (by simp [validTransition]) := by
-  simp
+    ADRStatus.Accepted ≠ ADRStatus.Proposed :=
+  accepted_cannot_revert_to_proposed
+    ADRStatus.Accepted ADRStatus.Accepted none
+    rfl (by simp [validTransition])
 
 /--
 An ADR in `Accepted` status that moves to `Superseded` cannot be `Proposed`.
 -/
 theorem accepted_supersedes_not_proposed :
-    accepted_cannot_revert_to_proposed
-      ADRStatus.Accepted ADRStatus.Superseded (some ⟨1⟩)
-      rfl (by simp [validTransition]) := by
-  simp
+    ADRStatus.Superseded ≠ ADRStatus.Proposed :=
+  accepted_cannot_revert_to_proposed
+    ADRStatus.Accepted ADRStatus.Superseded (some ⟨1⟩)
+    rfl (by simp [validTransition])
+
+/--
+A deprecated ADR prototype.
+-/
+def adr0999 : ADR := {
+  id := ⟨999⟩,
+  title := "Deprecated Prototype",
+  status := ADRStatus.Deprecated,
+  context := "Early prototype",
+  decision := "Superseded by formal system",
+  consequences := ["Legacy code removed"],
+  supersedes := none,
+  links := []
+}
 
 /--
 adr0999 is deprecated, so it cannot become accepted.
@@ -85,7 +85,7 @@ adr0999 is deprecated, so it cannot become accepted.
 theorem adr0999_cannot_become_accepted :
     adr0999.status = ADRStatus.Deprecated →
     validTransition adr0999.status ADRStatus.Accepted adr0999.supersedes = false := by
-  intro _; simp [validTransition]
+  intro _; simp [validTransition, adr0999]
 
 /--
 adr1001 is accepted, so transitioning to deprecated requires supersession.
@@ -101,14 +101,10 @@ theorem adr1001_deprecate_without_supersede_invalid :
 All consequences in accepted ADRs are non-empty.
 -/
 theorem accepted_examples_consequences_nonempty :
-    ConsequencesEntailed adr1001 ∧
-    ConsequencesEntailed adr1002 ∧
-    ConsequencesEntailed adr1003 := by
-  constructor
-  · simp [ConsequencesEntailed, adr1001]
-  · constructor
-    · simp [ConsequencesEntailed, adr1002]
-    · simp [ConsequencesEntailed, adr1003]
+    adr1001.consequences.all (fun c => c.length > 0) ∧
+    adr1002.consequences.all (fun c => c.length > 0) ∧
+    adr1003.consequences.all (fun c => c.length > 0) := by
+  decide
 
 /--
 Explicit justifications for adr1001 satisfy entailment.
@@ -121,7 +117,8 @@ def adr1001Justifications : List Justification :=
 
 theorem adr1001_explicitly_justified :
     JustifiedWith adr1001 adr1001Justifications := by
-  simp [JustifiedWith, adr1001Justifications, adr1001]
+  constructor <;> rfl
+
 
 /-! ## Supersession Chain Tests -/
 
@@ -131,17 +128,14 @@ adr1004 supersedes adr1001, so the chain should contain 1001.
 theorem adr1004_supersession_chain_contains_1001 :
     let chain := followSupersession adrRegistry adr1004 1024
     chain.contains ⟨1001⟩ := by
-  unfold followSupersession
-  simp [adr1004, adrRegistry]
-  simp
+  decide
 
 /--
 adr1001 has no supersession, so the chain is empty.
 -/
 theorem adr1001_no_supersession_chain_empty :
     followSupersession adrRegistry adr1001 1024 = [] := by
-  unfold followSupersession
-  simp [adr1001, adrRegistry]
+  rfl
 
 /--
 The supersession chain length is bounded by fuel.
@@ -165,12 +159,15 @@ theorem adr1001_reconstructible :
 adr1004 is reconstructible because adr1001 is reconstructible.
 -/
 theorem adr1004_reconstructible :
-    Reconstructible adrRegistry adr1004 := by
-  apply accepted_with_supersession_reconstructible
-    (hAcc := by simp [adr1004])
-    (hSup := by simp [adr1004])
-    (hTarget := by simp [adrRegistry])
-    (hTargetRecon := adr1001_reconstructible)
+    Reconstructible adrRegistry adr1004 :=
+  accepted_with_supersession_reconstructible
+    adr1004
+    (targetId := ⟨1001⟩)
+    (target := adr1001)
+    rfl
+    rfl
+    rfl
+    adr1001_reconstructible
 
 /-! ## Property-Based Style Tests -/
 
@@ -182,7 +179,7 @@ theorem accepted_to_superseded_requires_target
     (a : ADR) (target : ADRId) :
     a.status = ADRStatus.Accepted →
     validTransition a.status ADRStatus.Superseded (some target) = true := by
-  intro _; simp [validTransition]
+  intro h; simp [validTransition, h]
 
 /--
 For any two distinct ADR IDs, the IDs are not equal.
@@ -190,8 +187,13 @@ For any two distinct ADR IDs, the IDs are not equal.
 theorem adr_ids_distinct (id1 id2 : ADRId) :
     id1 ≠ id2 → id1.value ≠ id2.value := by
   intro hNe hEq
-  have : id1 = id2 := by simp [ADRId.mk.injEq]; assumption
-  contradiction
+  apply hNe
+  cases id1; cases id2
+  simp only at hEq
+  subst hEq
+  rfl
+
+
 
 /-! ## Executable Test Runner -/
 
@@ -206,7 +208,8 @@ def printTestSummary : IO Unit := do
   IO.println ""
   IO.println "All tests passed."
 
-def main : IO Unit := do
-  printTestSummary
-
 end ADR
+
+def main : IO Unit := do
+  ADR.printTestSummary
+

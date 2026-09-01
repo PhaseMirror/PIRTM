@@ -12,7 +12,7 @@ namespace prime_tensors.Transition
 /-! ## Prime-Indexed State -/
 
 /-- A prime-indexed state carrier: a finite list of prime indices. -/
-def PrimeIndices := List Nat
+abbrev PrimeIndices := List Nat
 
 /-- A transition operator maps one prime-indexed configuration to another. -/
 def TransitionOp := PrimeIndices → PrimeIndices

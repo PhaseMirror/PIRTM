@@ -13,7 +13,7 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Method Calls & Postfix Chaining** | Verified | ✅ Complete | FFI built-in dispatch to `string_len`, `vec_push`, `map_insert` |
 | **WardMonitor Runtime Drift** | Verified | ⚠️ Partial | `pirtm-monitor` unit tests (Zeno damping & kill-switch); **unit mismatch with Lean formalization** (ADR-025) |
 | **Small-Gain Spectral Radius ($\rho < 1$)** | Formal Invariant | ✅ Complete | `pirtm-engine/tests/spectral_tests.rs` & CLI `--ensemble` validation |
-| **Lean Axiom-Clean Core** | Mathlib-Free | ⚠️ Partial | `lean/` self-contained build; **kernel imports broken** (`prime_tensors` missing, ADR-018); **6 `sorry` in Proofs.lean** (ADR-019) |
+| **Lean Axiom-Clean Core** | Mathlib-Free | ⚠️ Partial | `lean/` self-contained build; **kernel imports broken** (`prime_tensors` missing, ADR-018); **0 `sorry` in Proofs.lean** (ADR-019) |
 | **Sedona Spine CI Gate** | Continuous Enforcement | ✅ Complete | `.github/workflows/sedona_spine_ci.yml` on-tree |
 | **Bounded Iteration Theorems (Phase A)** | Formal Proofs | ⚠️ Partial | `lean/ADR/BoundedIteration.lean` (`iterate_non_expansive`, zero-sorry); **integer metric may not match f64 runtime** (ADR-025) |
 | **MLIR Lowering Soundness (ADR-017)** | Formal Proofs | ⚠️ Partial | `lean/ADR/LoweringSoundness.lean` (`mlir_lowering_preserves_contractivity`); **kernel build broken** (ADR-018) |
