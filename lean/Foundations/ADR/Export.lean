@@ -36,3 +36,7 @@ def exportAll : IO Unit := do
   exportADR primeIndexedPhaseDissonance (outDir ++ "/ADR-037-Prime-Indexed-Phase-Dissonance.md")
   exportADR governanceManifold (outDir ++ "/ADR-038-Governance-Manifold-Fail-Closed-Control.md")
   exportADR cognitiveEconomy (outDir ++ "/ADR-039-Cognitive-Economy-Ethical-Projection.md")
+  exportADR echoBraidFeedback (outDir ++ "/ADR-040-EchoBraid-Quantum-Feedback.md")
+  exportADR multiplicityFloerOperator (outDir ++ "/ADR-041-Multiplicity-Floer-Differential-Operator.md")
+  exportADR primeConstitutionalOrder (outDir ++ "/ADR-042-Prime-Constitutional-Order-CSL.md")
+  exportADR lawfulRecursionLicense (outDir ++ "/ADR-043-Lawful-Recursion-License.md")

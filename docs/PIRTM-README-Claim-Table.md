@@ -29,6 +29,7 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **CRMF Orchestration** | Hardware-Tensor Binding | ✅ Complete | `cargo test -p pirtm-orchestration` (1 test: CRMF request) |
 | **REPL + LSP Developer Tools** | Real-Time Gate Feedback | ✅ Complete | `cargo build -p pirtm-tools`; LSP diagnostics on `scf`/`func` ops |
 | **WebAssembly SDK Builder** | WASM Compilation Bridge | ⏳ In Progress | `pirtm-web-sdk` binary compiles via `cargo build`; requires `emcc`+`lake` for `build` subcommand |
+| **QMHES Stability Theorems (ADR-033)** | Formal Proofs | ⚠️ Partial | `lean/ADR/QMHESStability.lean` (5 theorems + 6 supporting lemmas, zero-sorry); `lake build` + `lake test` on-tree; open deferred property `AX-QMHES-003` and scoped KDF assumption `AX-QMHES-001` |
 
 ## Legend
 

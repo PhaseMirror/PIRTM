@@ -7,11 +7,15 @@ import Foundations.ADR.PrimeAutoencoder
 import Foundations.ADR.PhaseDissonance
 import Foundations.ADR.GovernanceManifold
 import Foundations.ADR.CognitiveEconomy
+import Foundations.ADR.EchoBraid
+import Foundations.ADR.FloerOperator
+import Foundations.ADR.Constitution
+import Foundations.ADR.License
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-039.
+Lake test suite for ADR invariants, ADR-034 through ADR-043.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -20,6 +24,10 @@ open PIRTM.PrimeAutoencoder
 open PIRTM.PhaseDissonance
 open PIRTM.GovernanceManifold
 open PIRTM.CognitiveEconomy
+open PIRTM.EchoBraid
+open PIRTM.FloerOperator
+open PIRTM.Constitution
+open PIRTM.License
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -100,3 +108,32 @@ def test_ethical_projection_idempotence : IO Unit := do
     IO.println "ADR-039: Idempotent ethical projection test passed"
   else
     throw $ IO.Error.userError "ADR-039: Ethical projection idempotence test failed"
+
+def test_echobraid_prediction_bound : IO Unit := do
+  let p : PredictionSkeleton := { alphaDotXi := 10, betaDelta := 15, maxAllowed := 30 }
+  if isPredictionContractive p then
+    IO.println "ADR-040: EchoBraid prediction skeleton contractivity check passed"
+  else
+    throw $ IO.Error.userError "ADR-040: Prediction skeleton contractivity check failed"
+
+def test_floer_flow_bound : IO Unit := do
+  let s : FloerState := { hamiltonianGrad := 10, potentialGrad := 5, stochasticNoise := 2 }
+  let b : FloerFlowBound := { maxMagnitude := 50 }
+  if isFloerFlowAdmissible s 3 b then
+    IO.println "ADR-041: Multiplicity Floer differential flow bound test passed"
+  else
+    throw $ IO.Error.userError "ADR-041: Floer flow bound test failed"
+
+def test_csl_constitution_gate : IO Unit := do
+  let intent : CslIntent := { isNeutral := true, isBeneficent := true, isSilenceSafe := true }
+  if evaluateCsl intent then
+    IO.println "ADR-042: CSL Constitution gate evaluation test passed"
+  else
+    throw $ IO.Error.userError "ADR-042: CSL gate evaluation failed"
+
+def test_lawful_license_certification : IO Unit := do
+  let state : ExecutionState := { stateId := 1, drift := 5, maxAllowed := 10, hasPirtm := true, hasCsl := true, hasZk := true }
+  if isLawfulEvolution state then
+    IO.println "ADR-043: Lawful License certification test passed"
+  else
+    throw $ IO.Error.userError "ADR-043: Lawful license certification failed"

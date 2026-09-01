@@ -191,7 +191,7 @@ after 10 steps with period 2 starting from bound 100, the multiplicity
 cannot exceed the linear schedule bound B + t = 110.
 -/
 theorem qmhes_multiplicity_bounded_test :
-    QMHESStability.multiplicity_bounded 100 2 (by decide) 10 := by
+    (fun n : Nat => 100 + n / 2) 10 ≤ 100 + 10 := by
   exact QMHESStability.multiplicity_bounded 100 2 (by decide) 10
 
 /--
@@ -199,19 +199,22 @@ The Lyapunov function converges: attenuated ρ = 900·(100−10)/100 = 810 ≤ 9
 under Zeno damping at a 10% rate.
 -/
 theorem qmhes_lyapunov_convergence_test :
-    QMHESStability.lyapunov_convergence 900 100 10 (by decide) := by
+    900 * (100 - 10) / 100 ≤ 900 := by
   exact QMHESStability.lyapunov_convergence 900 100 10 (by decide)
 
 /--
 Prime eigenmode convergence: after 10 iterations of the ground-mode
-collapse map, the distance between two eigenmode states is bounded by
-their initial distance (0 ≤ 50 computed by `native_decide`).
+collapse map (L = 0), the distance between two eigenmode states is
+bounded by their initial distance.
 -/
 theorem qmhes_prime_eigenmode_convergence_test :
-    QMHESStability.prime_eigenmode_convergence
-      QMHESStability.StandardNatMetric QMHESStability.eigenmodeCollapseMap 3 (by decide)
-      10 100 50 := by
-  native_decide
+    QMHESStability.StandardNatMetric.dist
+      (BoundedIteration.iterate QMHESStability.eigenmodeCollapseMap.f 10 100)
+      (BoundedIteration.iterate QMHESStability.eigenmodeCollapseMap.f 10 50)
+    ≤ QMHESStability.StandardNatMetric.dist 100 50 := by
+  exact QMHESStability.prime_eigenmode_convergence
+    QMHESStability.StandardNatMetric QMHESStability.eigenmodeCollapseMap 3 (by decide)
+    10 100 50
 
 /--
 HKDF expand (bit-packed block encoding) produces distinct blocks for
@@ -219,7 +222,7 @@ distinct counters within one expansion context.
 -/
 theorem qmhes_hkdf_distinct_test :
     QMHESStability.hkdf_expand_step 42 7 0 ≠ QMHESStability.hkdf_expand_step 42 7 1 := by
-  by_contra h
+  intro h
   exact QMHESStability.hkdf_expand_distinct 42 7 0 1 (by decide) (by decide) (by decide) h
 
 /--
@@ -262,23 +265,33 @@ theorem qmhes_qber_no_rekey_test :
   exact QMHESStability.qber_below_threshold_no_rekey 90 (by decide)
 
 /--
-Attenuation cannot move the system into a worse Ward state: a `Green` raw
-measurement stays `Green` under contraction.
+Attenuation cannot move the system into a worse Ward state: a raw `Green`
+measurement (ρ = 50) stays `Green` under contraction to ρ = 40.
 -/
 theorem qmhes_ward_state_green_preserved_test :
-    QMHESStability.qmhes_ward_state_not_worse 50 40 (by decide) (by decide) := by
+    ZenoController.classifyState 40 = ZenoController.WardState.Green := by
   exact QMHESStability.qmhes_ward_state_not_worse 50 40 (by decide) (by decide)
 
 /--
-The QAHES handshake (composition of contractive lowering ops) preserves the
-metric envelope.
+The QAHES handshake (KEM encapsulate ∘ decapsulate, modeled as contractive
+lowering ops) preserves the metric envelope: composing `idOp` then `constOp 7`
+maps both 42 and 41 to 7, with cellDist 0 ≤ cellDist 42 41.
 -/
 theorem qmhes_handshake_envelope_preserved_test :
-    let op1 : LoweringSoundness.OpTransformer := LoweringSoundness.idOp
-    let op2 : LoweringSoundness.OpTransformer := LoweringSoundness.constOp 7
-    QMHESStability.qahes_handshake_envelope_preserved op1 op2 42 41 := by
-  -- op2(op1(42)) = 7, op2(op1(41)) = 7, cellDist 7 7 = 0 ≤ cellDist 42 41
-  native_decide
+    LoweringSoundness.cellDist
+      ((LoweringSoundness.constOp 7).transform ((LoweringSoundness.idOp).transform 42))
+      ((LoweringSoundness.constOp 7).transform ((LoweringSoundness.idOp).transform 41))
+    ≤ LoweringSoundness.cellDist 42 41 := by
+  exact QMHESStability.qahes_handshake_envelope_preserved
+    LoweringSoundness.idOp (LoweringSoundness.constOp 7) 42 41
+
+/--
+ADR-033 introduces no supersession edges, so the traceability invariant
+(non-circular history) holds vacuously.
+-/
+theorem qmhes_no_circular_supersession_test :
+    ADR.followSupersession (fun _ => none) QMHESStability.qmhesAdr 1024 = [] := by
+  exact QMHESStability.qmhes_no_circular_supersession (fun _ => none)
 
 
 

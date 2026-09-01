@@ -155,3 +155,67 @@ def cognitiveEconomy : ADR := {
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-039-Cognitive-Economy-Ethical-Projection.md", label := "ADR-039 Document"}]
 }
+
+/-- ADR-040: EchoBraid Quantum Feedback -/
+def echoBraidFeedback : ADR := {
+  id := 40,
+  title := "EchoBraid Quantum Feedback & Recursive Spectrum Coherence",
+  status := ADRStatus.Accepted,
+  context := "Feedback control under high-dimensional noise risks phase decorrelation without prime-indexed eigenphase feedback.",
+  decision := "Integrate Floer-Echo-Bundle Operator and EchoBraid spectral weave into PIRTM state feedback loop.",
+  consequences := [
+    "Formalize differential state flow under Floer-Echo-Bundle operator F_EB.",
+    "Model eigenphase feedback as prime-indexed tensor bundle weave.",
+    "Bound recursive prediction error drift under dynamic CSL constraints."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-040-EchoBraid-Quantum-Feedback.md", label := "ADR-040 Document"}]
+}
+
+/-- ADR-041: Multiplicity Floer Differential Operator -/
+def multiplicityFloerOperator : ADR := {
+  id := 41,
+  title := "Multiplicity Floer Differential Operator",
+  status := ADRStatus.Accepted,
+  context := "Standard Floer operators lack prime-based encodings and multi-scale tensor interactions.",
+  decision := "Integrate extended Multiplicity Floer differential operator into PIRTM core mathematical substrate.",
+  consequences := [
+    "Formalize operator F with self-interaction term and multi-scale tensor matrix T_ij.",
+    "Compute TQFT tensor invariants over prime-indexed state bases.",
+    "Enforce dynamic potential feedback bounds L(t) during execution steps."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-041-Multiplicity-Floer-Differential-Operator.md", label := "ADR-041 Document"}]
+}
+
+/-- ADR-042: Prime-Constitutional Order & CSL -/
+def primeConstitutionalOrder : ADR := {
+  id := 42,
+  title := "Prime-Constitutional Order & Conscious Sovereignty Layer (CSL)",
+  status := ADRStatus.Accepted,
+  context := "Ex-post ethics review and surveillance trust models permit coercive and ungrounded execution.",
+  decision := "Adopt Prime-Constitutional Order and CSL operators (Neutrality, Beneficence, Silence) as protocol-level firewalls.",
+  consequences := [
+    "Derive identity via prime-indexed commitments I = Poseidon(secret, prime_salt).",
+    "Evaluate execution intent through CSL operators N, B, and S.",
+    "Default to NO-OP silence whenever intent evaluation fails."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-042-Prime-Constitutional-Order-CSL.md", label := "ADR-042 Document"}]
+}
+
+/-- ADR-043: Lawful Recursion License -/
+def lawfulRecursionLicense : ADR := {
+  id := 43,
+  title := "Lawful Recursion License (Ξ-License v1.0)",
+  status := ADRStatus.Accepted,
+  context := "Standard licenses do not enforce computational lawfulness or prevent surveillance deployments.",
+  decision := "Integrate Ξ-License v1.0 terms binding execution rights to verified state evolution \\Xi(t+1) = \\Psi(\\Xi(t)).",
+  consequences := [
+    "Require Ξ-certification via PIRTM \\circ CSL \\circ ZK.",
+    "Enforce immediate lawful fork when semantic drift exceeds \\epsilon(t).",
+    "Prohibit black-box deployment, surveillance, and coercive computation."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-043-Lawful-Recursion-License.md", label := "ADR-043 Document"}]
+}
