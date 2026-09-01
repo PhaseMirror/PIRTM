@@ -1,0 +1,16 @@
+[Unit]
+Description=PIRTM Model Context Protocol (MCP) Governance Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=citizen
+WorkingDirectory=/media/citizen/b361d448-7c51-413a-aa23-9515cb626930/home/citizen/Multiplicity/PiLang
+ExecStart=/media/citizen/b361d448-7c51-413a-aa23-9515cb626930/home/citizen/Multiplicity/PiLang/rust/target/release/pirtm mcp start --transport tcp --port 8090
+Restart=always
+RestartSec=5
+Environment=RUST_BACKTRACE=1
+Environment=PIRTM_LOG=info
+
+[Install]
+WantedBy=multi-user.target
