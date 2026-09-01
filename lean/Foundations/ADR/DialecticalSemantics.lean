@@ -1,73 +1,73 @@
 import Foundations.ADR.Core
-import Foundations.ADR.Proofs
 
 /-!
-# ADR-034: Prime-Indexed Dialectical Semantics & Contestation Fields
+# ADR-034: Prime-Indexed Dialectical Semantics
 
-Formal Lean 4 implementation of ADR-034:
-- Gate-based certification pipeline (Grounding, Robustness, Dialectical Non-Collapse).
-- Typed rejection semantics.
-- Prime-indexed semantic space invariants.
+Formal Lean 4 model for ADR-034:
+- Dynamic Grounding Coverage Ratio & Grounding Gate.
+- Robustness Contestation Contraction Firewall.
+- Dialectical Tension & Contestation Field Stability Gate.
+- DRMM Trajectory Certification Pipeline.
 -/
 
 namespace PIRTM.DialecticalSemantics
 
-/-- Typed rejection states for semantic trajectory certification. -/
-inductive CertificationRejection where
-  | GroundingFailure : String → CertificationRejection
-  | RobustnessFailure : String → CertificationRejection
-  | DialecticalCollapse : String → CertificationRejection
-  deriving Repr, DecidableEq
-
-/-- Grounding metric parameters. -/
+/-- Grounding metrics for candidate semantic trajectories. -/
 structure GroundingMetrics where
-  coverageRatio : Nat  -- Represented as scaled percentage (0..100)
-  minThreshold  : Nat
+  coverageRatio : Nat  -- Coverage percentage 0..100
+  minThreshold  : Nat  -- Minimum required ratio
   deriving Repr
 
 /-- Dialectical tension metrics. -/
 structure DialecticalTension where
-  tensionDelta : Nat
-  maxAllowed   : Nat
-  branchCount  : Nat
+  tensionDelta : Nat  -- Measured tension magnitude \Delta T_ij
+  maxAllowed   : Nat  -- Certified stability bound
+  branchCount  : Nat  -- Number of active contestation branches
   deriving Repr
 
-/-- Candidate semantic evolution trajectory. -/
+/-- Candidate semantic trajectory. -/
 structure CandidateTrajectory where
-  id : Nat
-  grounding : GroundingMetrics
-  tension : DialecticalTension
-  contractivityScaled : Nat -- k * 100 < 100
+  id                  : Nat
+  grounding           : GroundingMetrics
+  tension             : DialecticalTension
+  contractivityScaled : Nat  -- Contractivity parameter k * 100
   deriving Repr
 
-/-- Result of the certification pipeline. -/
+/-- Gate rejection reasons. -/
+inductive CertificationRejection where
+  | UngroundedSemantics   (msg : String)
+  | HallucinationCollapse (msg : String)
+  | DialecticalCollapse   (msg : String)
+  deriving Repr, DecidableEq
+
+/-- Certification pipeline result. -/
 inductive CertificationResult where
-  | Admissible : CandidateTrajectory → CertificationResult
-  | Rejected   : CertificationRejection → CertificationResult
+  | Admissible (c : CandidateTrajectory)
+  | Rejected   (reason : CertificationRejection)
   deriving Repr
 
-/-- Grounding Gate \Pi_G -/
+/-- Grounding coverage gate logic. -/
 def evaluateGroundingGate (c : CandidateTrajectory) : Option CertificationRejection :=
-  if c.grounding.coverageRatio >= c.grounding.minThreshold then
-    none
+  if c.grounding.coverageRatio < c.grounding.minThreshold then
+    some (CertificationRejection.UngroundedSemantics "Grounding coverage ratio below minimum threshold")
   else
-    some (CertificationRejection.GroundingFailure "Grounding ratio below minimum threshold")
+    none
 
-/-- Robustness / Contractivity Gate \Pi_R -/
+/-- Robustness contestation contraction gate. -/
 def evaluateRobustnessGate (c : CandidateTrajectory) : Option CertificationRejection :=
-  if c.contractivityScaled < 100 then
-    none
+  if c.contractivityScaled >= 100 then
+    some (CertificationRejection.HallucinationCollapse "Contractivity parameter k >= 1; risk of hallucination drift")
   else
-    some (CertificationRejection.RobustnessFailure "Trajectory violates contractivity bound k < 1")
+    none
 
-/-- Dialectical Gate \Pi_D -/
+/-- Dialectical tension & branch count gate. -/
 def evaluateDialecticalGate (c : CandidateTrajectory) : Option CertificationRejection :=
-  if c.tension.tensionDelta <= c.tension.maxAllowed && c.tension.branchCount > 1 then
-    none
-  else if c.tension.branchCount <= 1 then
-    some (CertificationRejection.DialecticalCollapse "Dialectical pluralism collapsed to single branch")
-  else
+  if c.tension.tensionDelta > c.tension.maxAllowed then
     some (CertificationRejection.DialecticalCollapse "Dialectical tension exceeds stability bound")
+  else if c.tension.branchCount <= 1 then
+    some (CertificationRejection.DialecticalCollapse "Insufficient contestation branch count; degenerate trajectory")
+  else
+    none
 
 /-- Full DRMM Certification Pipeline Firewall -/
 def certifyTrajectory (c : CandidateTrajectory) : CertificationResult :=
@@ -83,11 +83,23 @@ def certifyTrajectory (c : CandidateTrajectory) : CertificationResult :=
 
 /-- Theorem: Admissible trajectories strictly satisfy all three gate invariants. -/
 theorem admissible_implies_invariants (c : CandidateTrajectory)
-    (_h : certifyTrajectory c = CertificationResult.Admissible c) :
+    (h : certifyTrajectory c = CertificationResult.Admissible c) :
     c.grounding.coverageRatio >= c.grounding.minThreshold ∧
     c.contractivityScaled < 100 ∧
     c.tension.tensionDelta <= c.tension.maxAllowed ∧
     c.tension.branchCount > 1 := by
-  sorry
+  by_cases hg : c.grounding.coverageRatio < c.grounding.minThreshold
+  · simp [certifyTrajectory, evaluateGroundingGate, hg] at h
+  · have hg' : c.grounding.coverageRatio >= c.grounding.minThreshold := by omega
+    by_cases hr : c.contractivityScaled >= 100
+    · simp [certifyTrajectory, evaluateGroundingGate, evaluateRobustnessGate, hg, hr] at h
+    · have hr' : c.contractivityScaled < 100 := by omega
+      by_cases hd : c.tension.tensionDelta > c.tension.maxAllowed
+      · simp [certifyTrajectory, evaluateGroundingGate, evaluateRobustnessGate, evaluateDialecticalGate, hg, hr, hd] at h
+      · have hd' : c.tension.tensionDelta <= c.tension.maxAllowed := by omega
+        by_cases hb : c.tension.branchCount <= 1
+        · simp [certifyTrajectory, evaluateGroundingGate, evaluateRobustnessGate, evaluateDialecticalGate, hg, hr, hd, hb] at h
+        · have hb' : c.tension.branchCount > 1 := by omega
+          exact ⟨hg', hr', hd', hb'⟩
 
 end PIRTM.DialecticalSemantics

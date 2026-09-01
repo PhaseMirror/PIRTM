@@ -91,4 +91,18 @@ mod tests {
         assert_eq!(c_state.syndrome(), -1);
         assert!(!c_state.is_in_prime_subspace());
     }
+
+    #[test]
+    fn test_composite_integer_rejected_as_nonprime() {
+        // 49 = 7 * 7 is composite and must NOT be classified as a prime
+        // basis state. This is the arithmetic source of truth that the Lean
+        // structural snapshot deliberately delegates here (see ENF-006 / AX-PQ-001).
+        assert!(!is_prime_basis(49));
+        let c49 = PrimeSubspaceState::new(49, 8).unwrap();
+        assert_eq!(c49.syndrome(), -1);
+        assert!(!c49.is_in_prime_subspace());
+
+        // sanity: a genuinely prime value stays classified prime
+        assert!(is_prime_basis(97));
+    }
 }

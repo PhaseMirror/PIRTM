@@ -11,11 +11,12 @@ import Foundations.ADR.EchoBraid
 import Foundations.ADR.FloerOperator
 import Foundations.ADR.Constitution
 import Foundations.ADR.License
+import Foundations.ADR.Reconciliation
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-043.
+Lake test suite for ADR invariants, ADR-034 through ADR-044.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -28,6 +29,7 @@ open PIRTM.EchoBraid
 open PIRTM.FloerOperator
 open PIRTM.Constitution
 open PIRTM.License
+open PIRTM.Reconciliation
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -137,3 +139,9 @@ def test_lawful_license_certification : IO Unit := do
     IO.println "ADR-043: Lawful License certification test passed"
   else
     throw $ IO.Error.userError "ADR-043: Lawful license certification failed"
+
+def test_registry_reconciliation_promotion : IO Unit := do
+  if isPromotableToAccepted true true then
+    IO.println "ADR-044: Registry promotion rule test passed"
+  else
+    throw $ IO.Error.userError "ADR-044: Registry promotion rule failed"

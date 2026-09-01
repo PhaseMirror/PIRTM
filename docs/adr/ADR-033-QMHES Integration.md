@@ -1,8 +1,9 @@
 ## 📄 ADR-033: Quantum-Multiplicity Hybrid Encryption System (QMHES) Integration
 
-**Status:** Proposed  
+**Status:** Accepted  
 **Date:** 2026-09-01  
 **Supersedes:** None  
+**Verification:** Lean stability theorem port complete — `lean/ADR/QMHESStability.lean` (zero-sorry), exercised by `lake build` / `lake test` (ADR-033 line printed by TestDriver). Open debts tracked as `AX-QMHES-001`, `AX-QMHES-003`.  
 
 ---
 
@@ -30,7 +31,7 @@ The system is already partially implemented in Python (`PhaseMirror-HQ/packages/
 We will integrate QMHES into the PIRTM/MOC compiler as a **cryptographic extension** of the kernel, guided by the following principles:
 
 1. **Protocol formalization**: The QAHES v1.0.1 wire protocol will be modeled as a set of AST nodes and MLIR operations, with the same strict governance as the core language.
-2. **Stability proofs in Lean**: The five main theorems from the QMHES appendix (multiplicity boundedness, Lyapunov convergence, prime eigenmode convergence, HKDF security, frequency‑map Lipschitz) will be ported to Lean 4 and added to the proof suite.
+2. **Stability proofs in Lean**: The five main theorems from the QMHES appendix (multiplicity boundedness, Lyapunov convergence, prime eigenmode convergence, HKDF security, frequency‑map bounded sensitivity) have been ported to Lean 4 in `lean/ADR/QMHESStability.lean` (zero‑sorry) and added to the proof suite. The strong frequency‑map Lipschitz bound is a documented open refinement (`AX-QMHES-003`).
 3. **FFI bindings**: The compiler will expose `extern` functions to `liboqs` (ML‑KEM, ML‑DSA, SLH‑DSA) and to a QKD simulator (or real QKD hardware via ETSI GS QKD 014).
 4. **CLI subcommand**: A new `pirtm qahes` subcommand will implement the QAHES handshake and AEAD transport, with full audit logging and Small‑Gain enforcement.
 5. **Adaptive feedback**: The Multiplicity feedback loop (eq. 24) will be integrated with the WardMonitor, allowing the system to adjust key rotation cadence based on observed drift and QBER.

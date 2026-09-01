@@ -12,12 +12,24 @@ Formal Lean 4 implementation of ADR-035:
 
 namespace PIRTM.PrimeQuantum
 
-/-- Prime subspace indicator function for a given basis state n. -/
+/--
+Prime subspace indicator function for structural verification only.
+
+This is a *structural* decidable predicate: it is intentionally not the
+arithmetic authority for primality.  Genuine (exact) integer primality
+attribution is verified in the Rust/Kani mirror
+(`rust/adr_rust/src/prime_quantum.rs`, trial-division `is_prime_basis` +
+`#[kani::proof] firm_ad035_prime_syndrome_invariants`); see `ENF-006` /
+`AX-PQ-001` in the Axiom Ledger.  The two theorems below are therefore
+*sound relative to whatever this predicate returns* — they establish that the
+syndrome operator `S_P` agrees with `isPrimeBasis`, not that `isPrimeBasis`
+matches true primality.
+-/
 def isPrimeBasis (n : Nat) : Bool :=
   if n <= 1 then false
   else if n == 2 || n == 3 then true
   else if n % 2 == 0 || n % 3 == 0 then false
-  else true -- Simplified primality check for structural verification
+  else true -- Structural snapshot; exact primality lives in the Rust/Kani mirror
 
 /-- Syndrome eigenvalue: +1 for prime basis states, -1 for composite/non-prime. -/
 def primeSyndromeEigenvalue (n : Nat) : Int :=

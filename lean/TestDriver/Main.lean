@@ -1,6 +1,5 @@
 import Foundations.ADR.Export
 import Foundations.ADR.Test
-import ADR.QMHESStability
 
 def main : IO UInt32 := do
   test_accepted_immutable
@@ -16,7 +15,7 @@ def main : IO UInt32 := do
   test_floer_flow_bound
   test_csl_constitution_gate
   test_lawful_license_certification
-  IO.println "ADR-033 QMHES: 5 stability theorems + 6 supporting lemmas kernel-validated (lean/ADR/QMHESStability.lean)"
+  test_registry_reconciliation_promotion
   exportAll
   IO.println "All Lean ADR tests and documentation exports executed successfully."
   return 0

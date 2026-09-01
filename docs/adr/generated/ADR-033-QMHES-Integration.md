@@ -1,7 +1,7 @@
 # Quantum-Multiplicity Hybrid Encryption System (QMHES) Integration
 
 - **ID**: 33
-- **Status**: Proposed
+- **Status**: Accepted
 - **Context**: QMHES provides a post-quantum cryptographic architecture with adaptive Multiplicity feedback.
 - **Decision**: Integrate QMHES into the PIRTM/MOC compiler as a governed cryptographic extension.
 - **Consequences**:

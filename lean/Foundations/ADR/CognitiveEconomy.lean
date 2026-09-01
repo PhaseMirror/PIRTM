@@ -47,8 +47,7 @@ theorem projection_idempotent (m : EthicalManifold) (s : CognitiveState) :
   dsimp [projectEthical]
   split <;> rename_i h1
   · -- s is lawful and in bound
-    have h_and := Bool.and_eq_true _ _ |>.mp h1
-    simp [h_and.1, h_and.2]
+    simp_all
   · -- s was projected
     simp [Nat.min_le_right]
 

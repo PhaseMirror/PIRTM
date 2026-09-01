@@ -48,7 +48,7 @@ def primeRecursiveFoundations : ADR := {
 def qmhesIntegration : ADR := {
   id := 33,
   title := "Quantum-Multiplicity Hybrid Encryption System (QMHES) Integration",
-  status := ADRStatus.Proposed,
+  status := ADRStatus.Accepted,
   context := "QMHES provides a post-quantum cryptographic architecture with adaptive Multiplicity feedback.",
   decision := "Integrate QMHES into the PIRTM/MOC compiler as a governed cryptographic extension.",
   consequences := [
@@ -218,4 +218,20 @@ def lawfulRecursionLicense : ADR := {
   ],
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-043-Lawful-Recursion-License.md", label := "ADR-043 Document"}]
+}
+
+/-- ADR-044: Comprehensive Registry Reconciliation -/
+def registryReconciliation : ADR := {
+  id := 44,
+  title := "Phase Mirror Comprehensive ADR Registry Reconciliation & Dissonance Resolution",
+  status := ADRStatus.Accepted,
+  context := "Governance dissonance existed between legacy 10-ADR registry.json and 43 total verified ADRs.",
+  decision := "Reconcile registry.json, promote ADR-033 to Accepted, and enforce 1:1 parity across Lean and Rust models.",
+  consequences := [
+    "Reconcile registry.json to include all ADRs (ADR-001 to ADR-044).",
+    "Promote ADR-033 QMHES status to Accepted.",
+    "Enforce complete 1:1 parity between registry.json, Lean 4 Examples.lean, and Rust adr_rust."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-044-Comprehensive-Registry-Reconciliation.md", label := "ADR-044 Document"}]
 }

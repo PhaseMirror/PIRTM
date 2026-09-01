@@ -40,3 +40,4 @@ def exportAll : IO Unit := do
   exportADR multiplicityFloerOperator (outDir ++ "/ADR-041-Multiplicity-Floer-Differential-Operator.md")
   exportADR primeConstitutionalOrder (outDir ++ "/ADR-042-Prime-Constitutional-Order-CSL.md")
   exportADR lawfulRecursionLicense (outDir ++ "/ADR-043-Lawful-Recursion-License.md")
+  exportADR registryReconciliation (outDir ++ "/ADR-044-Comprehensive-Registry-Reconciliation.md")

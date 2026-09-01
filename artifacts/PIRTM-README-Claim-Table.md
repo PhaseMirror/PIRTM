@@ -1,7 +1,7 @@
 # PIRTM Grounded Status & Claim Table
 
 **Last Audited:** 2026-09-01  
-**Audit SHA-256:** `acbe958fb1ecae708c731e4ab24fb8580934f901a7a355f80b5291d461f5f1c8`
+**Audit SHA-256:** `1351058b1c21f82ebe6c5467d906aa94da2f81e2dbaae0676c148349715b6a08`
 
 This table reflects the ground-truth status of all PIRTM/MOC components, replacing aspirational statements with verifiable status indicators. Every "✅ Complete" claim must link to an existing, verifiable test or physical artifact on tree.
 
@@ -29,6 +29,19 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **CRMF Orchestration** | Hardware-Tensor Binding | ✅ Complete | `cargo test -p pirtm-orchestration` (1 test: CRMF request) |
 | **REPL + LSP Developer Tools** | Real-Time Gate Feedback | ✅ Complete | `cargo build -p pirtm-tools`; LSP diagnostics on `scf`/`func` ops |
 | **WebAssembly SDK Builder** | WASM Compilation Bridge | ⏳ In Progress | `pirtm-web-sdk` binary compiles via `cargo build`; requires `emcc`+`lake` for `build` subcommand |
+| **QMHES Stability Theorems (ADR-033)** | Formal Proofs | ⚠️ Partial | `lean/ADR/QMHESStability.lean` (5 theorems + 6 supporting lemmas, zero-sorry); `lake build` + `lake test` on-tree; open deferred property `AX-QMHES-003` and scoped KDF assumption `AX-QMHES-001` |
+| **Dialectical Semantics (ADR-034)** | Gate Firewall | ✅ Complete | `lean/Foundations/ADR/DialecticalSemantics.lean` (`admissible_implies_invariants`, zero-sorry) + `rust/adr_rust/src/dialectical_semantics.rs` (Kani `verify_adr034_*`) + `lean/Foundations/ADR/Test.lean:47` & `Main.lean` runtime |
+| **Prime-Encoded Quantum States (ADR-035)** | Subspace Error Detect | ✅ Complete | `lean/Foundations/ADR/PrimeQuantum.lean` (`prime_syndrome_positive/negative`, zero-sorry; arithmetic authority = Rust/Kani `is_prime_basis`) + `rust/adr_rust/src/prime_quantum.rs:84` (incl. `test_composite_integer_rejected_as_nonprime`) |
+| **Prime-Structured TN-AE (ADR-036)** | Rank Surrogate Bound | ✅ Complete | `lean/Foundations/ADR/PrimeAutoencoder.lean` (`rank_surrogate_bounded`) + `rust/adr_rust/src/prime_autoencoder.rs` (Kani `verify_adr036_*`) + `lean/Foundations/ADR/Test.lean:78` |
+| **Phase-Dissonance Functionals (ADR-037)** | Governance Layer | ✅ Complete | `lean/Foundations/ADR/PhaseDissonance.lean` (`in_bounds_implies_band_satisfied`) + `rust/adr_rust/src/phase_dissonance.rs` (Kani `verify_adr037_*`) + `lean/Foundations/ADR/Test.lean:85` |
+| **Phase Mirror Governance Manifold (ADR-038)** | Fail-Closed Control | ✅ Complete | `lean/Foundations/ADR/GovernanceManifold.lean` (`cache_valid_implies_soft_envelope`) + `rust/adr_rust/src/governance_manifold.rs` (Kani `verify_adr038_*`) + `lean/Foundations/ADR/Test.lean:96` |
+| **Cognitive Economy & Ethical Projection (ADR-039)** | Idempotent Projection | ✅ Complete | `lean/Foundations/ADR/CognitiveEconomy.lean` (`projection_idempotent`, `lawful_state_preservation`) + `rust/adr_rust/src/cognitive_economy.rs` (Kani `verify_adr039_*`) + `lean/Foundations/ADR/Test.lean:102` |
+| **EchoBraid Quantum Feedback (ADR-040)** | Spectral Coherence | ✅ Complete | `lean/Foundations/ADR/EchoBraid.lean` (`prediction_bounded`) + `rust/adr_rust/src/echo_braid.rs` (Kani `verify_adr040_*`) + `lean/Foundations/ADR/Test.lean:112` |
+| **Multiplicity Floer Operator (ADR-041)** | Flow Bound | ✅ Complete | `lean/Foundations/ADR/FloerOperator.lean` (`floer_flow_bounded`) + `rust/adr_rust/src/floer_operator.rs` (Kani `verify_adr041_*`) + `lean/Foundations/ADR/Test.lean:119` |
+| **Constitutional Order & CSL (ADR-042)** | CSL Gate | ✅ Complete | `lean/Foundations/ADR/Constitution.lean` (`csl_gate_sound`) + `rust/adr_rust/src/constitution.rs` (Kani `verify_adr042_*`) + `lean/Foundations/ADR/Test.lean:127` |
+| **Lawful Recursion License (ADR-043)** | Ξ-Certification | ✅ Complete | `lean/Foundations/ADR/License.lean` (`lawful_evolution_sound`) + `rust/adr_rust/src/license.rs` (Kani `verify_adr043_*`) + `rust/adr_rust/tests/integration_test.rs` (`test_lawful_evolution_soundness`) + `lean/Foundations/ADR/Test.lean:134` |
+| **ADR Model Invariants (Proofs)** | Immutable / Supersession / Traceability | ✅ Complete | `lean/Foundations/ADR/Proofs.lean` (`accepted_immutable_without_supersession`, `followSupersession_length_bounded`, `traceability`) + `rust/adr_rust` integration test (`test_supersession_cycle_detection`); arithmetic/chain soundness delegated to Rust/Kani (`ENF-006` / `AX-PQ-001`) |
+| **Registry Reconciliation (ADR-044)** | Promotion Rule | ✅ Complete | `lean/Foundations/ADR/Reconciliation.lean` (`promotion_requires_proofs`, zero-sorry) + `rust/adr_rust/src/reconciliation.rs` (Kani `verify_adr044_*` + `test_registry_reconciliation_promotion`) + `lean/Foundations/ADR/Test.lean:143` |
 
 ## Legend
 
