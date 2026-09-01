@@ -1,7 +1,9 @@
-// crates/pirtm-mlir/src/ops.rs
+// crates/pirtm-mlir/src/pirtm/dialect/ops.rs
+
+use pirtm_parser::ast::LogicalOp;
 
 /// Represents the PIRTM Dialect operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PirtmOp {
     Ensemble {
         name: String,
@@ -16,20 +18,52 @@ pub enum PirtmOp {
         spectral_budget: f64,
         receipt_hash: String,
     },
-    /// Ap(p, params): The fundamental prime-indexed operator atom.
+    /// Ap(p): The fundamental prime-indexed operator atom.
     OperatorAtom {
         prime_index: u64,
         result_id: String,
         receipt_hash: String,
     },
-    Alloca { typ: String, result_id: String },
-    Store { ptr_id: String, val_id: String },
-    Load { ptr_id: String, result_id: String },
-    MethodCall { obj_id: String, method: String, arg_ids: Vec<String>, result_id: String },
-    LogicalOp { op: pirtm_parser::ast::LogicalOp, left_id: String, right_id: String, result_id: String },
-    Not { expr_id: String, result_id: String },
-    Tuple { elem_ids: Vec<String>, result_id: String },
-    /// A binary operation that combines two SSA values.
+    /// Allocate mutable stack slot: llvm.alloca
+    Alloca {
+        typ: String,
+        result_id: String,
+    },
+    /// Store value to pointer: llvm.store
+    Store {
+        ptr_id: String,
+        val_id: String,
+    },
+    /// Load value from pointer: llvm.load
+    Load {
+        ptr_id: String,
+        result_id: String,
+    },
+    /// Method call dispatch: lowers to runtime/FFI call
+    MethodCall {
+        obj_id: String,
+        method: String,
+        arg_ids: Vec<String>,
+        result_id: String,
+    },
+    /// Logical operation with short-circuiting: scf.if
+    LogicalOp {
+        op: LogicalOp,
+        left_id: String,
+        right_id: String,
+        result_id: String,
+    },
+    /// Logical Not operation: arith.xori %x, 1
+    Not {
+        expr_id: String,
+        result_id: String,
+    },
+    /// Tuple construction: llvm.undef + llvm.insertvalue
+    Tuple {
+        elem_ids: Vec<String>,
+        result_id: String,
+    },
+    /// Binary arithmetic/comparison operation
     BinaryOp {
         op_kind: String,
         left_id: String,
@@ -37,54 +71,74 @@ pub enum PirtmOp {
         result_id: String,
         receipt_hash: String,
     },
-    /// A constant value.
+    /// Integer constant
     Constant {
         value: i64,
         result_id: String,
     },
-    /// Yield operation for block terminators.
+    /// Float constant
+    FloatConstant {
+        value: f64,
+        result_id: String,
+    },
+    /// String constant
+    StringConstant {
+        value: String,
+        result_id: String,
+    },
+    /// Character constant
+    CharConstant {
+        value: char,
+        result_id: String,
+    },
+    /// Boolean constant
+    BoolConstant {
+        value: bool,
+        result_id: String,
+    },
+    /// Yield operation for block terminators
     Yield {
         value_id: String,
     },
-    /// Sigmoid unary operation.
+    /// Sigmoid unary operation
     Sigmoid {
         operand_id: String,
         result_id: String,
     },
-    /// Lowers to `scf.if`
+    /// Conditional branching: scf.if
     If {
         condition: Box<PirtmOp>,
         then_ops: Vec<PirtmOp>,
         else_ops: Vec<PirtmOp>,
     },
-    /// Lowers to `scf.while`
+    /// Loop construct: scf.while
     While {
         condition: Box<PirtmOp>,
         body_ops: Vec<PirtmOp>,
     },
-    /// Lowers to `func.func`
+    /// Function definition: func.func
     Func {
         name: String,
         args: Vec<String>,
         body_ops: Vec<PirtmOp>,
     },
-    /// Lowers to `func.func` with external linkage
+    /// External C-ABI function declaration
     ExternFunc {
         name: String,
         abi: String,
         arg_types: Vec<String>,
         return_type: String,
     },
-    /// Lowers to `func.call`
+    /// Function call: func.call
     Call {
         name: String,
         args: Vec<PirtmOp>,
     },
-    /// Lowers to `func.return`
+    /// Return statement: func.return
     Return {
         value: Option<Box<PirtmOp>>,
     },
-    /// Struct definition `llvm.struct`
+    /// Struct definition: llvm.struct
     StructDef {
         name: String,
         fields: Vec<String>,
@@ -97,17 +151,17 @@ pub enum PirtmOp {
         variants: Vec<(String, Option<String>)>,
         generic_params: Vec<String>,
     },
-    /// Struct initialization `llvm.undef` + `llvm.insertvalue`
+    /// Struct initialization: llvm.undef + llvm.insertvalue
     StructInit {
         name: String,
         fields: Vec<(String, Box<PirtmOp>)>,
     },
-    /// Field access `llvm.extractvalue`
+    /// Field access: llvm.extractvalue
     FieldAccess {
         base: Box<PirtmOp>,
         field: String,
     },
-    /// Match pattern `scf.switch` or nested `scf.if`
+    /// Pattern matching: scf.switch / nested scf.if
     Match {
         value: Box<PirtmOp>,
         arms: Vec<(String, Vec<PirtmOp>)>,
@@ -115,6 +169,7 @@ pub enum PirtmOp {
 }
 
 impl PirtmOp {
+    /// Emit MLIR text for this operation.
     pub fn emit_mlir(&self) -> Result<String, String> {
         match self {
             PirtmOp::Ensemble { name, version, .. } => {
@@ -123,14 +178,17 @@ impl PirtmOp {
             PirtmOp::Import { path, .. } => {
                 Ok(format!("  pirtm.import \"{}\"", path))
             }
+            PirtmOp::OperatorAtom { prime_index, result_id, receipt_hash } => {
+                Ok(format!("  %{} = pirtm.operator_atom {} {{receipt = \"{}\"}} : !pirtm.stratum", result_id, prime_index, receipt_hash))
+            }
             PirtmOp::Alloca { typ, result_id } => {
-                Ok(format!("  %{} = llvm.alloca {} x i1", result_id, typ))
+                Ok(format!("  %{} = llvm.alloca 1 x {} : (!llvm.ptr)", result_id, typ))
             }
             PirtmOp::Store { ptr_id, val_id } => {
-                Ok(format!("  llvm.store %{}, %{}", val_id, ptr_id))
+                Ok(format!("  llvm.store %{}, %{} : !llvm.ptr", val_id, ptr_id))
             }
             PirtmOp::Load { ptr_id, result_id } => {
-                Ok(format!("  %{} = llvm.load %{}", result_id, ptr_id))
+                Ok(format!("  %{} = llvm.load %{} : !llvm.ptr -> i64", result_id, ptr_id))
             }
             PirtmOp::MethodCall { obj_id, method, arg_ids, result_id } => {
                 let func_name = match method.as_str() {
@@ -142,47 +200,77 @@ impl PirtmOp {
                     "char_at" => "string_char_at",
                     "slice" => "string_slice",
                     "get" => "array_get",
-                    _ => &method,
+                    "unwrap" => "option_unwrap",
+                    _ => method.as_str(),
                 };
                 let mut all_args = vec![format!("%{}", obj_id)];
-                for a in arg_ids { all_args.push(format!("%{}", a)); }
+                for a in arg_ids {
+                    all_args.push(format!("%{}", a));
+                }
                 let args_str = all_args.join(", ");
-                Ok(format!("  %{} = call @{}({}) : () -> !pirtm.stratum", result_id, func_name, args_str))
+                Ok(format!("  %{} = func.call @{}({}) : () -> !pirtm.stratum", result_id, func_name, args_str))
             }
             PirtmOp::LogicalOp { op, left_id, right_id, result_id } => {
                 match op {
-                    pirtm_parser::ast::LogicalOp::And => Ok(format!("  %{} = scf.if %{} {{\n    scf.yield %{}\n  }} else {{\n    %c0 = pirtm.constant 0 : i64\n    scf.yield %c0\n  }}", result_id, left_id, right_id)),
-                    pirtm_parser::ast::LogicalOp::Or => Ok(format!("  %{} = scf.if %{} {{\n    %c1 = pirtm.constant 1 : i64\n    scf.yield %c1\n  }} else {{\n    scf.yield %{}\n  }}", result_id, left_id, right_id)),
+                    LogicalOp::And => Ok(format!(
+                        "  %{} = scf.if %{} -> (i1) {{\n    scf.yield %{} : i1\n  }} else {{\n    %c0_{} = arith.constant false\n    scf.yield %c0_{} : i1\n  }}",
+                        result_id, left_id, right_id, result_id, result_id
+                    )),
+                    LogicalOp::Or => Ok(format!(
+                        "  %{} = scf.if %{} -> (i1) {{\n    %c1_{} = arith.constant true\n    scf.yield %c1_{} : i1\n  }} else {{\n    scf.yield %{} : i1\n  }}",
+                        result_id, left_id, result_id, result_id, right_id
+                    )),
                 }
             }
             PirtmOp::Not { expr_id, result_id } => {
-                Ok(format!("  %{} = arith.xori %{}, 1 : i64", result_id, expr_id))
+                Ok(format!("  %c_true_{} = arith.constant true\n  %{} = arith.xori %{}, %c_true_{} : i1", result_id, result_id, expr_id, result_id))
             }
             PirtmOp::Tuple { elem_ids, result_id } => {
                 let typ = format!("struct<{}>", vec!["i64"; elem_ids.len()].join(", "));
                 let mut s = format!("  %undef_{} = llvm.undef : !llvm.{}\n", result_id, typ);
+                let mut prev = format!("%undef_{}", result_id);
                 for (i, elem) in elem_ids.iter().enumerate() {
-                    let prev = if i == 0 { format!("%undef_{}", result_id) } else { format!("%ins{}_{}", i-1, result_id) };
                     let next = format!("%ins{}_{}", i, result_id);
                     s.push_str(&format!("  {} = llvm.insertvalue %{}, {}[{}] : !llvm.{}\n", next, elem, prev, i, typ));
+                    prev = next;
                 }
-                // Finally alias the last insertion to result_id
-                let last = if elem_ids.is_empty() { format!("%undef_{}", result_id) } else { format!("%ins{}_{}", elem_ids.len()-1, result_id) };
-                s.push_str(&format!("  %{} = llvm.mlir.addressof {} : !llvm.{}", result_id, last, typ)); // Just a dummy assignment to bind the SSA id
+                s.push_str(&format!("  %{} = llvm.mlir.addressof {} : !llvm.{}", result_id, prev, typ));
                 Ok(s)
             }
-            PirtmOp::OperatorAtom { prime_index, result_id, receipt_hash } => {
-                Ok(format!("  %{} = pirtm.operator_atom {} {{receipt = \"{}\"}} : !pirtm.stratum", result_id, prime_index, receipt_hash))
-            }
             PirtmOp::BinaryOp { op_kind, left_id, right_id, result_id, receipt_hash } => {
-                Ok(format!("  %{} = pirtm.binary_{} %{}, %{} {{receipt = \"{}\"}} : (!pirtm.stratum, !pirtm.stratum) -> !pirtm.stratum", result_id, op_kind, left_id, right_id, receipt_hash))
+                match op_kind.as_str() {
+                    "add" => Ok(format!("  %{} = arith.addi %{}, %{} : i64", result_id, left_id, right_id)),
+                    "sub" => Ok(format!("  %{} = arith.subi %{}, %{} : i64", result_id, left_id, right_id)),
+                    "mul" => Ok(format!("  %{} = arith.muli %{}, %{} : i64", result_id, left_id, right_id)),
+                    "div" => Ok(format!("  %{} = arith.divsi %{}, %{} : i64", result_id, left_id, right_id)),
+                    "eq" => Ok(format!("  %{} = arith.cmpi eq, %{}, %{} : i64", result_id, left_id, right_id)),
+                    "neq" => Ok(format!("  %{} = arith.cmpi ne, %{}, %{} : i64", result_id, left_id, right_id)),
+                    "lt" => Ok(format!("  %{} = arith.cmpi slt, %{}, %{} : i64", result_id, left_id, right_id)),
+                    "gt" => Ok(format!("  %{} = arith.cmpi sgt, %{}, %{} : i64", result_id, left_id, right_id)),
+                    "le" => Ok(format!("  %{} = arith.cmpi sle, %{}, %{} : i64", result_id, left_id, right_id)),
+                    "ge" => Ok(format!("  %{} = arith.cmpi sge, %{}, %{} : i64", result_id, left_id, right_id)),
+                    _ => Ok(format!("  %{} = pirtm.binary_{} %{}, %{} {{receipt = \"{}\"}} : (!pirtm.stratum, !pirtm.stratum) -> !pirtm.stratum", result_id, op_kind, left_id, right_id, receipt_hash)),
+                }
             }
             PirtmOp::Constant { value, result_id } => {
-                Ok(format!("  %{} = pirtm.constant {} : i64", result_id, value))
+                Ok(format!("  %{} = arith.constant {} : i64", result_id, value))
+            }
+            PirtmOp::FloatConstant { value, result_id } => {
+                Ok(format!("  %{} = arith.constant {:?} : f64", result_id, value))
+            }
+            PirtmOp::StringConstant { value, result_id } => {
+                Ok(format!("  %{} = llvm.mlir.constant(\"{}\") : !llvm.ptr", result_id, value))
+            }
+            PirtmOp::CharConstant { value, result_id } => {
+                Ok(format!("  %{} = arith.constant {} : i32", result_id, *value as u32))
+            }
+            PirtmOp::BoolConstant { value, result_id } => {
+                let v = if *value { 1 } else { 0 };
+                Ok(format!("  %{} = arith.constant {} : i1", result_id, v))
             }
             PirtmOp::Yield { value_id } => {
                 Ok(format!("  pirtm.yield %{} : !pirtm.stratum", value_id))
-            },
+            }
             PirtmOp::Sigmoid { operand_id, result_id } => {
                 Ok(format!("  %{} = pirtm.sigmoid %{} : (tensor<?xf64>) -> tensor<?xf64>", result_id, operand_id))
             }
@@ -209,7 +297,7 @@ impl PirtmOp {
                 let args_text = args.iter().map(|a| format!("%{}: i64", a)).collect::<Vec<_>>().join(", ");
                 let body_text = body_ops.iter().map(|op| op.emit_mlir()).collect::<Result<Vec<_>, _>>()?.join("\n    ");
                 
-                Ok(format!("func.func @{}({}) {{\n    {}\n    return\n}}", name, args_text, body_text))
+                Ok(format!("func.func @{}({}) {{\n    {}\n    func.return\n}}", name, args_text, body_text))
             }
             PirtmOp::ExternFunc { name, abi, arg_types, return_type } => {
                 let args = arg_types.join(", ");
@@ -233,7 +321,6 @@ impl PirtmOp {
                 Ok(format!("!{} = type {{ {} }}", name, field_types))
             }
             PirtmOp::EnumDef { name, .. } => {
-                // Simplified enum type lowering as a tagged struct: { i32 (tag), payload }
                 Ok(format!("!{} = type {{ i32, i64 }}", name))
             }
             PirtmOp::StructInit { name, fields } => {
@@ -246,15 +333,14 @@ impl PirtmOp {
             }
             PirtmOp::FieldAccess { base, field } => {
                 let base_val = base.emit_mlir()?;
-                // Using 0 as a placeholder since we don't have symbol resolution for indices yet
                 Ok(format!("%ext_field_{} = llvm.extractvalue {}, 0", field, base_val))
             }
             PirtmOp::Match { value, arms } => {
                 let val_expr = value.emit_mlir()?;
                 let mut switch_cases = String::new();
-                for (i, (pat, ops)) in arms.iter().enumerate() {
+                for (i, (_pat, ops)) in arms.iter().enumerate() {
                     let body = ops.iter().map(|op| op.emit_mlir()).collect::<Result<Vec<_>, _>>()?.join("\n      ");
-                    switch_cases.push_str(&format!("case {} {{\n      {}\n      scf.yield\n    }}\n    ", i, body)); // placeholder index matching for now
+                    switch_cases.push_str(&format!("case {} {{\n      {}\n      scf.yield\n    }}\n    ", i, body));
                 }
                 Ok(format!("scf.switch {} {{\n    {}\n  }}", val_expr, switch_cases))
             }
@@ -326,13 +412,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_emit_sigmoid() {
-        let op = PirtmOp::Sigmoid {
-            operand_id: "x".to_string(),
-            result_id: "y".to_string(),
+    fn test_emit_alloca_store_load() {
+        let alloca = PirtmOp::Alloca {
+            typ: "i64".to_string(),
+            result_id: "ptr0".to_string(),
         };
-        let mlir = op.emit_mlir().unwrap();
-        assert!(mlir.contains("pirtm.sigmoid"));
-        assert!(mlir.contains("%y = pirtm.sigmoid %x"));
+        let mlir = alloca.emit_mlir().unwrap();
+        assert!(mlir.contains("llvm.alloca"));
+
+        let store = PirtmOp::Store {
+            ptr_id: "ptr0".to_string(),
+            val_id: "val0".to_string(),
+        };
+        let mlir_store = store.emit_mlir().unwrap();
+        assert!(mlir_store.contains("llvm.store"));
+
+        let load = PirtmOp::Load {
+            ptr_id: "ptr0".to_string(),
+            result_id: "loaded0".to_string(),
+        };
+        let mlir_load = load.emit_mlir().unwrap();
+        assert!(mlir_load.contains("llvm.load"));
+    }
+
+    #[test]
+    fn test_emit_logical_short_circuit() {
+        let log_and = PirtmOp::LogicalOp {
+            op: LogicalOp::And,
+            left_id: "a".to_string(),
+            right_id: "b".to_string(),
+            result_id: "res".to_string(),
+        };
+        let mlir = log_and.emit_mlir().unwrap();
+        assert!(mlir.contains("scf.if %a -> (i1)"));
+        assert!(mlir.contains("scf.yield %b"));
+        assert!(mlir.contains("arith.constant false"));
+    }
+
+    #[test]
+    fn test_emit_method_call() {
+        let mc = PirtmOp::MethodCall {
+            obj_id: "str0".to_string(),
+            method: "len".to_string(),
+            arg_ids: vec![],
+            result_id: "len0".to_string(),
+        };
+        let mlir = mc.emit_mlir().unwrap();
+        assert!(mlir.contains("call @string_len(%str0)"));
     }
 }

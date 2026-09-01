@@ -1,7 +1,11 @@
+// crates/pirtm-lexer/src/lib.rs
+
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
+#[logos(skip r"[ \t\n\f]+")]
 #[logos(skip r"//.*")]
+#[logos(skip r"/\*([^*]|\*[^/])*\*/")]
 pub enum Token {
     #[token("let")] Let,
     #[token("mut")] Mut,
@@ -12,6 +16,14 @@ pub enum Token {
     #[token("ensemble")] Ensemble,
     #[token("use")] Use,
     #[token("extern")] Extern,
+    #[token("struct")] Struct,
+    #[token("enum")] Enum,
+    #[token("impl")] Impl,
+    #[token("match")] Match,
+    #[token("while")] While,
+    #[token("loop")] Loop,
+    #[token("break")] Break,
+    #[token("continue")] Continue,
 
     #[token("+")] Plus,
     #[token("-")] Minus,
@@ -27,11 +39,15 @@ pub enum Token {
     #[token(">")] Gt,
     #[token("<=")] Le,
     #[token(">=")] Ge,
+    #[token("?")] Question,
+    #[token("&")] Amp,
 
     #[token("(")] LPar,
     #[token(")")] RPar,
     #[token("{")] LBrace,
     #[token("}")] RBrace,
+    #[token("[")] LBracket,
+    #[token("]")] RBracket,
     #[token(",")] Comma,
     #[token(";")] Semicolon,
     #[token(":")] Colon,
@@ -40,6 +56,7 @@ pub enum Token {
     #[token("with")] With,
     #[token("as")] As,
     #[token("=>")] FatArrow,
+    #[token("->")] Arrow,
 
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Ident(String),
@@ -61,9 +78,6 @@ pub enum Token {
         s.chars().nth(1).unwrap()
     })]
     CharLit(char),
-
-    #[regex(r"[ \t\n\f]+", logos::skip)]
-    Whitespace,
 }
 
 pub fn tokenize(source: &str) -> Vec<Token> {
@@ -80,12 +94,13 @@ pub fn tokenize(source: &str) -> Vec<Token> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn test_lex() {
-        let binding = std::fs::read_to_string("../calculator.pirtm").unwrap();
-        let mut lex = Token::lexer(binding.as_str());
-        while let Some(tok) = lex.next() {
-            println!("{:?}", tok);
-        }
+    fn test_lex_tokens() {
+        let source = "let mut x = 42; if (x > 10) { return true; }";
+        let tokens = tokenize(source);
+        assert_eq!(tokens[0], Token::Let);
+        assert_eq!(tokens[1], Token::Mut);
+        assert_eq!(tokens[2], Token::Ident("x".to_string()));
     }
 }

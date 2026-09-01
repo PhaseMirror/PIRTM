@@ -1,72 +1,43 @@
-# PIRTM/MOC as a General-Purpose Programming Language
+# PIRTM/MOC Compute Language
 
-You have a fully functional compiler that can parse, verify, lower, and execute PIRTM/MOC programs. The substrate is proven, the runtime is governed, and the toolchain is production-ready for mathematical kernels (prime-indexed tensor contractions, transcendentals, etc.).
-
-Now you want to write entire software modules in PIRTM/MOC — replacing Rust, Lean, and C++ for everyday programming. This is the logical next step, and the toolchain is already positioned to evolve into a full-fledged systems language.
-
-## 🎯 What’s Already Available
-
-| Feature | Status |
-| :--- | :--- |
-| Arithmetic, let-bindings, blocks | ✅ |
-| Prime operators (S, A, R, Π, Δ) | ✅ |
-| Multi-tier tensor contractions | ✅ |
-| Transcendentals (sin, cos, log) | ✅ |
-| MLIR lowering → LLVM → binary | ✅ |
-| Runtime governance (WardMonitor, kill-switch) | ✅ |
-| Formal Lean proofs for all operators | ✅ |
-| Playground / WASM / LSP | ✅ |
-
-### What’s missing for general-purpose modules:
-*   **Control flow** (if/else, loops)
-*   **Functions** (with parameters, recursion)
-*   **User-defined data types** (struct, enum)
-*   **Standard library** (I/O, collections, file, network)
-*   **Error handling** / result types
-*   **Testing framework**
+PIRTM/MOC is a formally governed, contractive systems programming language combining mathematical kernel verification (Sedona Spine, prime-indexed tensor sheaf contractions) with general-purpose language syntax lowered to MLIR.
 
 ---
 
-## 📋 Proposed Phased Plan
+## 🎯 Verified On-Tree Capabilities
 
-### Phase A – Control Flow & Functions (2-3 weeks)
-*   **Parser:** Add `if/else`, `while`, `for` loops, and function definitions (`fn name(params) -> type { ... }`).
-*   **AST:** New nodes for `If`, `Loop`, `FnDef`, `FnCall`.
-*   **Visitor:** Lower to MLIR’s `scf.if`, `scf.for`, and `func.func`/`func.call`.
-*   **Lean:** Prove contractivity of loops (bounded iteration) and function composition.
-*   **Tests:** Integrate simple control-flow programs in the test suite.
-
-### Phase B – User-Defined Data Types (2-3 weeks)
-*   **Parser:** Add `struct` and `enum` declarations with fields.
-*   **AST:** `StructDef`, `EnumDef`, `FieldAccess`, `Match` expressions.
-*   **Type system:** Extend monomorphic types to include structs and enums.
-*   **Visitor:** Emit MLIR’s `llvm.struct` and `llvm.ptr` types, with pattern-matching lowering.
-*   **Lean:** Prove structural invariants for data types (if needed).
-
-### Phase C – Standard Library (ongoing)
-*   **Core:** Provide modules for `io`, `file`, `net`, collections (`vector`, `map`, `set`).
-*   **FFI:** Allow `extern` declarations to call C/Rust libraries (e.g., `libc`).
-*   **Governance:** Each standard library function must have a Lean contractivity proof or a documented exception.
-*   **Tooling:** Add a package manager for third-party libraries (future).
-
-### Phase D – Error Handling & Testing (1-2 weeks)
-*   **Parser:** Add `Result<T, E>` and `Option<T>` types, with `?` operator.
-*   **Visitor:** Lower to `llvm.return` and error-propagation patterns.
-*   **Testing:** Build a lightweight `#[test]` harness that runs within the runtime and logs results.
+| Subsystem / Feature | Status | Verification & Evidence |
+| :--- | :---: | :--- |
+| **Arithmetic, let-bindings, blocks** | ✅ | Unit tests in `pirtm-parser` and `pirtm-mlir` |
+| **Prime operators (S, A, R, Π, Δ)** | ✅ | Mathlib-free canonical Lean 4 core in `lean/` |
+| **Mutable State (`let mut`, `=`)** | ✅ | Stack alloca/store/load lowered in `pirtm-mlir` |
+| **User Types & Methods (`struct`, `enum`, `impl`)** | ✅ | Type lowering and method call dispatch to FFI built-ins |
+| **Pattern Matching & Control Flow (`match`, `while`, `loop`)** | ✅ | Lowered to MLIR `scf.switch`, `scf.while`, `scf.if` |
+| **Error Handling (`Result<T, E>`, `Option<T>`, `?`)** | ✅ | Option unwrap and return propagation |
+| **MLIR Lowering Pipeline** | ✅ | `examples/json_parser.pirtm` → `examples/json_parser.mlir` |
+| **WardMonitor Runtime Governance** | ✅ | Zeno damping and `SIG_GOV_KILL` kill-switch |
+| **Sedona Spine CI Enforcement Gate** | ✅ | `.github/workflows/sedona_spine_ci.yml` |
+| **Small-Gain Spectral Radius Gate ($\rho < 1.0$)** | ⚠️ In Progress | Tracked in [docs/PIRTM-axiom-ledger.md](docs/PIRTM-axiom-ledger.md) |
 
 ---
 
-## 🔧 Implementation Strategy
+## 📋 Architectural Governance & Axiom Ledger
 
-*   **Incremental:** Each phase builds on the previous, and existing tests ensure no regression.
-*   **Governance:** New features require ADRs and Lean proofs; we can start with simple, proven constructs (e.g., `if` is already contractive if both branches are).
-*   **Tooling:** The existing playground can be extended to showcase new features.
+- **Scope Boundary**: [ADR-013: Scope Boundary of PIRTM/MOC](docs/ADR-013-PIRTM-MOC-Language-Scope.md)
+- **Grammar Authority**: [ADR-014: Dual-Grammar Authority & Quarantine](docs/ADR-014-Grammar-Authority.md)
+- **Formal Axiom & Enforcement Ledger**: [docs/PIRTM-axiom-ledger.md](docs/PIRTM-axiom-ledger.md)
+- **Comprehensive Claim Table**: [docs/PIRTM-README-Claim-Table.md](docs/PIRTM-README-Claim-Table.md)
 
 ---
 
-## 🚀 Immediate Next Step
+## 🚀 Quick Start
 
-You have a choice:
-1.  **Start with Phase A** (Control Flow & Functions) – the most urgent for writing real modules.
-2.  **Define a specific module** you want to implement (e.g., a file parser, a network service, a numerical solver) – this will tell us which features to prioritize.
-3.  **Write a simple PIRTM/MOC program** using only existing features and identify the pain points that block you.
+### Compiling PIRTM Source to MLIR
+```bash
+cargo run -p pirtm-compiler --bin pirtm -- compile examples/json_parser.pirtm --output examples/json_parser.mlir
+```
+
+### Running Test Suite
+```bash
+cargo test --workspace
+```
