@@ -1,0 +1,11 @@
+fn compute_sum(n: i64) -> i64 {
+    let mut sum = 0;
+    let mut i = 1;
+    while i <= n {
+        sum = sum + i;
+        i = i + 1;
+    }
+    return sum;
+}
+
+let total = compute_sum(10);
