@@ -65,10 +65,12 @@ enum Commands {
         #[arg(help = "Name of the new ensemble")]
         name: String,
     },
-    /// Run a compiled MLIR or LLVM IR file under governance.
+    /// Run a compiled MLIR or LLVM IR file under governance, with optional ensemble validation.
     Run {
         #[arg(value_name = "FILE")]
         file: String,
+        #[arg(long, help = "JSON ensemble configuration file")]
+        ensemble: Option<String>,
         #[arg(long, help = "Input to pass to the program (via stdin)")]
         input: Option<String>,
     },
@@ -185,18 +187,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Run { file, input } => {
+        Commands::Run {
+            file,
+            ensemble,
+            input,
+        } => {
             let config = pirtm_engine::RuntimeConfig {
                 input_args: input.map(|s| vec![s]).unwrap_or_default(),
                 ledger_enabled: true,
                 ..Default::default()
             };
             let mut runtime = pirtm_engine::Runtime::new(config);
-            runtime.load(std::path::Path::new(&file)).expect("Failed to load file");
-            let receipt = runtime.run().expect("Execution failed");
+
+            if let Some(ensemble_path) = ensemble {
+                let ensemble_obj = runtime
+                    .load_ensemble(Path::new(&ensemble_path))
+                    .map_err(|e| format!("Failed to load ensemble config {}: {}", ensemble_path, e))?;
+                let receipt = runtime
+                    .validate_ensemble(&ensemble_obj)
+                    .map_err(|e| format!("Ensemble validation failed: {}", e))?;
+                println!("✅ Ensemble validated under Small-Gain Theorem.");
+                println!("   Receipt hash: {}", receipt.hash);
+                println!("   Spectral radius ρ: {:.6}", receipt.spectral_radius);
+            } else {
+                eprintln!("⚠️  No ensemble config provided; skipping link-time spectral check.");
+            }
+
+            runtime
+                .load(std::path::Path::new(&file))
+                .map_err(|e| format!("Failed to load file: {}", e))?;
+            let receipt = runtime.run().map_err(|e| format!("Execution failed: {}", e))?;
             println!("Execution result: {}", receipt.return_code);
             println!("Contractivity hash: {}", receipt.contractivity_hash);
-            println!("Stdout: {}", receipt.stdout);
+            if !receipt.stdout.is_empty() {
+                println!("Stdout: {}", receipt.stdout);
+            }
         }
         Commands::New { project_type, name } => {
             if project_type != "ensemble" {

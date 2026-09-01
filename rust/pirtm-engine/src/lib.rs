@@ -41,6 +41,13 @@ impl Runtime {
         }
     }
 
+    /// Load an ensemble configuration from a JSON file.
+    pub fn load_ensemble(&self, path: &Path) -> Result<Ensemble, Box<dyn std::error::Error>> {
+        let content = std::fs::read_to_string(path)?;
+        let ensemble: Ensemble = serde_json::from_str(&content)?;
+        Ok(ensemble)
+    }
+
     pub fn validate_ensemble(&self, ensemble: &Ensemble) -> Result<EnsembleContractivityReceipt, String> {
         let cert = spectral::validate_and_certify(ensemble, 1e-6)?;
         println!(

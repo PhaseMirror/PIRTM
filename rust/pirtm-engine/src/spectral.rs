@@ -10,9 +10,14 @@ use nalgebra::DMatrix;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+fn default_ensemble_name() -> String {
+    "default_ensemble".to_string()
+}
+
 /// An interconnected ensemble of components with coupling matrix A and local gains λ
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Ensemble {
+    #[serde(default = "default_ensemble_name")]
     pub name: String,
     pub adjacency: Vec<Vec<f64>>,
     pub lambdas: Vec<f64>,
@@ -25,6 +30,11 @@ impl Ensemble {
             adjacency,
             lambdas,
         }
+    }
+
+    /// Compute the spectral radius of |A| * diag(λ).
+    pub fn spectral_radius(&self) -> Option<f64> {
+        check_small_gain(self, 0.0).ok()
     }
 }
 
