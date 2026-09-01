@@ -24,6 +24,7 @@ pub mod floer_operator;
 pub mod constitution;
 pub mod license;
 pub mod reconciliation;
+pub mod ui_integration;
 
 pub use core::{AdrId, AdrStatus, AdrError, ArtifactLink, Adr, AdrRegistry};
 pub use examples::example_adrs;

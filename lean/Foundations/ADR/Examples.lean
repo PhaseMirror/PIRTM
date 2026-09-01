@@ -235,3 +235,19 @@ def registryReconciliation : ADR := {
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-044-Comprehensive-Registry-Reconciliation.md", label := "ADR-044 Document"}]
 }
+
+/-- ADR-045: UI/UX Integration for PIRTM -/
+def uiUxIntegration : ADR := {
+  id := 45,
+  title := "UI/UX Integration for PIRTM",
+  status := ADRStatus.Accepted,
+  context := "A web-based interface is required for interactive playground execution and real-time governance dashboard monitoring.",
+  decision := "Integrate Next.js Governed Toolchain Framework (pirtm-governed-toolchain) with WASM and MCP bindings.",
+  consequences := [
+    "Provide web playground with in-browser compilation and MLIR rendering.",
+    "Display real-time contractivity receipts and WardMonitor telemetry.",
+    "Enforce governance gates across all frontend actions."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-045-UI-UX-Integration-PIRTM.md", label := "ADR-045 Document"}]
+}

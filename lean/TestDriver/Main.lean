@@ -16,6 +16,7 @@ def main : IO UInt32 := do
   test_csl_constitution_gate
   test_lawful_license_certification
   test_registry_reconciliation_promotion
+  test_ui_integration_receipt
   exportAll
   IO.println "All Lean ADR tests and documentation exports executed successfully."
   return 0

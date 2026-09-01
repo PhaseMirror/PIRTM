@@ -12,11 +12,12 @@ import Foundations.ADR.FloerOperator
 import Foundations.ADR.Constitution
 import Foundations.ADR.License
 import Foundations.ADR.Reconciliation
+import Foundations.ADR.UIIntegration
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-044.
+Lake test suite for ADR invariants, ADR-034 through ADR-045.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -30,6 +31,7 @@ open PIRTM.FloerOperator
 open PIRTM.Constitution
 open PIRTM.License
 open PIRTM.Reconciliation
+open PIRTM.UIIntegration
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -145,3 +147,11 @@ def test_registry_reconciliation_promotion : IO Unit := do
     IO.println "ADR-044: Registry promotion rule test passed"
   else
     throw $ IO.Error.userError "ADR-044: Registry promotion rule failed"
+
+def test_ui_integration_receipt : IO Unit := do
+  let req : UiCompileRequest := { codeSource := "Ap(2) + 3", spectralRadius := 85, isReadOnly := false }
+  let receipt := evaluateUiRequest req
+  if receipt.isAdmissible && receipt.mlirGenerated then
+    IO.println "ADR-045: UI contractivity gate & MLIR receipt generation test passed"
+  else
+    throw $ IO.Error.userError "ADR-045: UI compile evaluation failed"
