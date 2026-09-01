@@ -1,7 +1,7 @@
 # PIRTM/MOC Compute Language
 
 [![Sedona Spine CI](https://github.com/PhaseMirror/PIRTM/actions/workflows/sedona_spine_ci.yml/badge.svg)](.github/workflows/sedona_spine_ci.yml)
-[![License: MIT/Apache-2.0](https://img.shields.io/badge/License-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![License: MIT/Apache-2.0](https://img.shields.io/badge/License-Prime Materia Commons v1.0-blue.svg)](LICENSE)
 [![Lean 4: Axiom-Clean](https://img.shields.io/badge/Lean%204-Mathlib--Free%20Core-brightgreen.svg)](lean/)
 
 **PIRTM/MOC** is a formally governed, contractive systems programming language that integrates a verified mathematical kernel (Sedona Spine, prime-indexed tensor sheaf contractions, Lyapunov drift bounding) with general-purpose language syntax lowered to MLIR and LLVM.
