@@ -86,6 +86,14 @@ impl GeniusV2PracticeModel {
         };
 
         let is_contractive = drift <= MAX_ADMISSIBLE_DRIFT;
+        if !is_contractive {
+            return Err(format!(
+                "SIG_GOV_KILL: Drift violation in R(t): drift {}/{} > MAX {}/{}",
+                drift.numer(), drift.denom(),
+                MAX_ADMISSIBLE_DRIFT.numer(), MAX_ADMISSIBLE_DRIFT.denom()
+            ));
+        }
+
         self.last_r_t = Some(r_t);
 
         let timestamp = chrono::Utc::now().to_rfc3339();
@@ -95,14 +103,6 @@ impl GeniusV2PracticeModel {
         hasher.update(payload.as_bytes());
         let seal_hash = hex::encode(hasher.finalize());
         let poseidon_commitment = format!("pos2_{}", &seal_hash[..32]);
-
-        if !is_contractive {
-            return Err(format!(
-                "SIG_GOV_KILL: Drift violation in R(t): drift {}/{} > MAX {}/{}",
-                drift.numer(), drift.denom(),
-                MAX_ADMISSIBLE_DRIFT.numer(), MAX_ADMISSIBLE_DRIFT.denom()
-            ));
-        }
 
         Ok(SealedResonanceReceipt {
             timestamp,
