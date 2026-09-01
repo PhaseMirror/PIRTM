@@ -123,6 +123,7 @@ PiLang/
 - **[ADR-013: Scope Boundary of PIRTM/MOC](docs/ADR-013-PIRTM-MOC-Language-Scope.md)**: Rejects author-declared float sums as stability proofs.
 - **[ADR-014: Dual-Grammar Authority](docs/ADR-014-Grammar-Authority.md)**: Establishes `tree-sitter-pirtm` as sole kernel authority and quarantines control flow.
 - **[ADR-015: Reject False Delivery Packs](docs/ADR-015-Reject-False-Delivery-Pack.md)**: Mandates strict on-tree physical verification.
+- **[ADR-016: Bounded Iteration & Control Flow](docs/ADR-016-Bounded-Iteration-Control-Flow.md)**: Formal proofs for loops, branches, and function composition.
 - **[Axiom & Enforcement Ledger](docs/PIRTM-axiom-ledger.md)**: Complete tracking of proof obligations (`AX-001`–`AX-003`) and enforcement mechanisms (`ENF-001`–`ENF-003`).
 - **[Grounded Claim Table](docs/PIRTM-README-Claim-Table.md)**: Full claim-by-claim verification table.
 
