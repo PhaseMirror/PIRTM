@@ -18,11 +18,12 @@ import Foundations.ADR.SentinelIntegration
 import Foundations.ADR.WardMonitorStability
 import Foundations.ADR.Poseidon2Soundness
 import Foundations.ADR.DistributedGovernance
+import Foundations.ADR.InstallationProtocol
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-050.
+Lake test suite for ADR invariants, ADR-034 through ADR-051.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -42,6 +43,8 @@ open PIRTM.SentinelIntegration
 open PIRTM.WardMonitorStability
 open PIRTM.Poseidon2Soundness
 open PIRTM.DistributedGovernance
+open PIRTM.InstallationProtocol
+
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -202,3 +205,17 @@ def test_distributed_governance_consensus : IO Unit := do
     IO.println "ADR-050: Multi-node distributed governance consensus test passed"
   else
     throw $ IO.Error.userError "ADR-050: Cluster consensus quorum check failed"
+
+def test_installation_protocol_soundness : IO Unit := do
+  let st : InstallationState := {
+    hasRustc := true,
+    hasLean := true,
+    binariesCompiled := true,
+    binariesLinked := true,
+    kernelVerified := true
+  }
+  if verifyInstallation st then
+    IO.println "ADR-051: Local PC installation protocol soundness test passed"
+  else
+    throw $ IO.Error.userError "ADR-051: Local installation protocol verification failed"
+

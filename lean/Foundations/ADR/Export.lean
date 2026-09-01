@@ -47,3 +47,5 @@ def exportAll : IO Unit := do
   exportADR wardMonitorStability (outDir ++ "/ADR-048-WardMonitor-Drift-Correction-Lyapunov-Stability.md")
   exportADR poseidon2Acceleration (outDir ++ "/ADR-049-Poseidon2-ZK-SNARK-Circuit-Proof-Acceleration.md")
   exportADR distributedGovernanceConsensus (outDir ++ "/ADR-050-Multi-Node-Distributed-Governance-Consensus.md")
+  exportADR installationProtocol (outDir ++ "/ADR-051-Local-PC-Installation-Development-Protocol.md")
+

@@ -331,3 +331,20 @@ def distributedGovernanceConsensus : ADR := {
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-050-Multi-Node-Distributed-Governance-Consensus.md", label := "ADR-050 Document"}]
 }
+
+/-- ADR-051: Local PC Installation & Governed Developer Environment Protocol -/
+def installationProtocol : ADR := {
+  id := 51,
+  title := "Local PC Installation & Governed Developer Environment Protocol",
+  status := ADRStatus.Accepted,
+  context := "Local installation and development of PIRTM require a sealed reproducible build pipeline and Lean 4 kernel verification.",
+  decision := "Implement install.sh pipeline, ~/.local/bin binary distribution, and Lean 4 installation soundness in InstallationProtocol.",
+  consequences := [
+    "Full local executable distribution in ~/.local/bin for pirtm, pirtmc, pirtm-mcp, and pirtm-lsp.",
+    "Machine-checked zero-drift installation validation in Lean 4.",
+    "Synchronize ADR-051 across Lean, Rust workspace, and registry.json."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-051-Local-PC-Installation-Development-Protocol.md", label := "ADR-051 Document"}]
+}
+

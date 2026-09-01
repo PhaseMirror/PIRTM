@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-if [[ ! -f "lakefile.toml" ]]; then
-  echo "ERROR: lakefile.toml not found in $SCRIPT_DIR"
+if [[ ! -f "lakefile.toml" ]] && [[ ! -f "lakefile.lean" ]]; then
+  echo "ERROR: lakefile.lean or lakefile.toml not found in $SCRIPT_DIR"
   echo "Please run this script from the PiLang repository root."
   exit 1
 fi
