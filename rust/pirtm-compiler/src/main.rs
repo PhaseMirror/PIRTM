@@ -74,10 +74,12 @@ enum Commands {
         #[arg(long, help = "Input to pass to the program (via stdin)")]
         input: Option<String>,
     },
-    /// Start the Model Context Protocol (MCP) server
+    /// Start the Model Context Protocol (MCP) server or invoke tools
     Mcp {
-        /// Optional action (e.g. 'start')
+        /// Optional action (e.g. 'start', 'compile', 'validate')
         action: Option<String>,
+        #[arg(long, help = "Source code for compile/validate action")]
+        source: Option<String>,
         #[arg(short, long, default_value = "stdio", help = "Transport: stdio or tcp")]
         transport: String,
         #[arg(short, long, default_value_t = 8090, help = "Port for TCP transport")]
@@ -266,7 +268,43 @@ contractivity_receipt = "pending"
 
             println!("✅ Successfully created new ensemble '{}'", name);
         }
-        Commands::Mcp { action: _, transport, port } => {
+        Commands::Mcp { action, source, transport, port } => {
+            if let Some(act) = action.as_deref() {
+                if act == "compile" {
+                    let src = source.unwrap_or_else(|| "let genesis = Ap(42); genesis;".to_string());
+                    if transport == "tcp" {
+                        let payload = serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "tools/call",
+                            "params": {
+                                "name": "compile",
+                                "arguments": { "source": src.clone() }
+                            }
+                        });
+                        let addr = format!("127.0.0.1:{}", port);
+                        if let Ok(mut stream) = std::net::TcpStream::connect(&addr) {
+                            use std::io::{Read, Write};
+                            let body = serde_json::to_string(&payload)?;
+                            let req = format!(
+                                "POST / HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                                addr, body.len(), body
+                            );
+                            stream.write_all(req.as_bytes())?;
+                            let mut buf = Vec::new();
+                            stream.read_to_end(&mut buf)?;
+                            let resp_str = String::from_utf8_lossy(&buf);
+                            println!("{}", resp_str);
+                            return Ok(());
+                        }
+                    }
+                    let val = pirtm_mcp::tools::handle_call("compile", &serde_json::json!({ "source": src }))
+                        .map_err(|e| format!("Tool execution failed: {}", e))?;
+                    println!("{}", serde_json::to_string_pretty(&val)?);
+                    return Ok(());
+                }
+            }
+
             let server = pirtm_mcp::McpServer::new();
             match transport.as_str() {
                 "stdio" => {
