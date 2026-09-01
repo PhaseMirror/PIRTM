@@ -4,7 +4,9 @@
 Defines the fundamental ADR data model used across the PIRTM project.
 -/
 
-def ADRId := Nat
+abbrev ADRId := Nat
+
+namespace PIRTM.ADR
 
 inductive ADRStatus where
   | Proposed   : ADRStatus
@@ -28,3 +30,5 @@ structure ADR where
   supersedes  : Option ADRId
   links       : List ArtifactLink
   deriving Repr
+
+end PIRTM.ADR

@@ -1,12 +1,16 @@
-/-!
-# Test Driver for ADR library
-
-Provides the executable required by `lake test` to discover and run `@[test]` declarations.
--/
-import Lake
-open Lake DSL
+import Foundations.ADR.Export
+import Foundations.ADR.Test
 
 def main : IO UInt32 := do
-  let cfg ← getCfg
-  let res ← Test.run cfg
-  if res.isEmpty then return 0 else return 1
+  test_accepted_immutable
+  test_traceability
+  test_dialectical_admissibility
+  test_dialectical_collapse_rejection
+  test_prime_quantum_syndrome
+  test_prime_autoencoder_rank_surrogate
+  test_phase_dissonance_in_bounds
+  test_governance_manifold_arbitration
+  test_ethical_projection_idempotence
+  exportAll
+  IO.println "All Lean ADR tests and documentation exports executed successfully."
+  return 0

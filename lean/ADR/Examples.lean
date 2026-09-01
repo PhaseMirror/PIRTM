@@ -212,6 +212,55 @@ def adr014 : ADR := {
   ]
 }
 
+/-! ## QMHES Integration ADR (ADR-033) -/
+
+/--
+ADR-033: Quantum-Multiplicity Hybrid Encryption System (QMHES) Integration.
+
+Formalizes the integration of the QMHES cryptographic protocol into the
+PIRTM/MOC compiler as a governed cryptographic extension.  The five QMHES
+stability theorems are proven in `ADR/QMHESStability.lean`.
+-/
+def adr033 : ADR := {
+  id := ⟨33⟩,
+  title := "Quantum-Multiplicity Hybrid Encryption System (QMHES) Integration",
+  status := ADRStatus.Accepted,
+  context := unlines
+    [ "QMHES (Van Gelder, April 2026) unifies post-quantum cryptography"
+    , "ML-KEM/ML-DSA/SLH-DSA, QKD (BB84/E91), and Multiplicity Theory"
+    , "adaptive feedback via the multiplicity operator M_t and coupling"
+    , "tensor T_t.  The PIRTM/MOC compiler requires a governed, auditable"
+    , "cryptographic extension."
+    ],
+  decision := unlines
+    [ "1. Formalize the QAHES v1.0.1 wire protocol as AST nodes and"
+    , "   MLIR operations with the same strict governance as the core."
+    , "2. Port the five QMHES stability theorems (A.4, C.2, D.3, E.2, F.4)"
+    , "   to Lean 4 in lean/ADR/QMHESStability.lean."
+    , "3. Expose extern FFI functions to liboqs (ML-KEM, ML-DSA, SLH-DSA)"
+    , "   and a QKD simulator in pirtm-engine/src/ffi.rs."
+    , "4. Add a `pirtm qahes` CLI subcommand with the QAHES handshake"
+    , "   and AEAD transport under Small-Gain enforcement."
+    , "5. Integrate the Multiplicity feedback loop with the WardMonitor."
+    ],
+  consequences := [
+    "Unified security model: post-quantum secure communication with audit receipts",
+    "Machine-checked stability: QMHES stability proofs in the Lean proof suite",
+    "Real-world applicability: secure data channels, AI-to-AI communication",
+    "Byte-exact interoperability: QAHES wire protocol is language-neutral",
+    "Dependency on liboqs: external C library must be managed in CI and packaging"
+  ],
+  supersedes := none,
+  links := [
+    ArtifactLink.leanDecl "QMHESStability.multiplicity_bounded",
+    ArtifactLink.leanDecl "QMHESStability.lyapunov_convergence",
+    ArtifactLink.leanDecl "QMHESStability.prime_eigenmode_convergence",
+    ArtifactLink.leanDecl "QMHESStability.hkdf_expand_distinct",
+    ArtifactLink.leanDecl "QMHESStability.frequency_quantization_bounded",
+    ArtifactLink.testFile "docs/adr/ADR-033-QMHES Integration.md"
+  ]
+}
+
 /-! ## Example Registry for Traceability Proofs -/
 
 /--
@@ -220,6 +269,7 @@ and traceability demonstrations.
 -/
 def adrRegistry : ADRId → Option ADR
   | ⟨14⟩ => some adr014
+  | ⟨33⟩ => some adr033
   | ⟨999⟩ => some adr0999
   | ⟨1001⟩ => some adr1001
   | ⟨1002⟩ => some adr1002

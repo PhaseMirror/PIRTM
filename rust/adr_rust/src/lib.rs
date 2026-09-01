@@ -13,6 +13,12 @@ pub mod core;
 pub mod euclidean;
 pub mod proof;
 pub mod examples;
+pub mod dialectical_semantics;
+pub mod prime_quantum;
+pub mod prime_autoencoder;
+pub mod phase_dissonance;
+pub mod governance_manifold;
+pub mod cognitive_economy;
 
 pub use core::{AdrId, AdrStatus, AdrError, ArtifactLink, Adr, AdrRegistry};
 pub use examples::example_adrs;

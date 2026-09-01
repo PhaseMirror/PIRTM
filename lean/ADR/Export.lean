@@ -35,7 +35,7 @@ Write all example ADRs to the `docs/` folder.
 def exportToDocs : IO Unit := do
   let docsPath := "./docs"
   IO.FS.createDirAll docsPath
-  let adrs := [adr0999, adr1001, adr1002, adr1003, adr1004]
+  let adrs := [adr0999, adr1001, adr1002, adr1003, adr1004, adr033]
   for adr in adrs do
     let filename := s!"{docsPath}/ADR-{adr.id.value}.md"
     let content := toMarkdown adr
@@ -46,7 +46,7 @@ def exportToDocs : IO Unit := do
 Print all example ADRs to stdout as markdown.
 -/
 def printAll : IO Unit := do
-  let adrs := [adr0999, adr1001, adr1002, adr1003, adr1004]
+  let adrs := [adr0999, adr1001, adr1002, adr1003, adr1004, adr033]
   for adr in adrs do
     IO.println (toMarkdown adr)
     IO.println "---"

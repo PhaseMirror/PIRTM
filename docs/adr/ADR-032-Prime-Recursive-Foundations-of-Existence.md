@@ -1,5 +1,8 @@
 # ADR-032: Prime Recursive Foundations of Existence
 
+**Status:** Accepted  
+**Date:** 2026-09-01  
+
 ## Executive Summary
 
 We formalize the *prime recursive* foundation for existence quantification in the PIRTM system, enabling provably sound construction of existential proofs via primitive recursive encodings. This ADR captures the design, the Lean‑4 formal model, and the production‑grade scaffolding to integrate the foundation into the ADR framework.

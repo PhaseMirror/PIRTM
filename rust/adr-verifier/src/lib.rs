@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_valid_production_registry() {
-        let registry_json = include_str!("../../../../docs/adr/registry.json");
+        let registry_json = include_str!("../../../docs/adr/registry.json");
         let registry = AdrRegistry::from_json_str(registry_json).expect("Parse registry.json");
         assert_eq!(registry.adrs.len(), 10);
         registry.verify_invariants().expect("Verify invariants");
@@ -593,7 +593,7 @@ mod tests {
 
     #[test]
     fn test_boundary_accepts_live_fixture() {
-        let json = include_str!("../../../../state/adr_plan_registry.json");
+        let json = include_str!("../../../state/adr_plan_registry.json");
         let reg = PhaseMirrorRegistry::from_json_str(json)
             .expect("Live fixture should parse");
         let config = KernelBoundaryConfig::default();

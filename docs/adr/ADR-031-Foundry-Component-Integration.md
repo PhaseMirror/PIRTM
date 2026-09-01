@@ -1,5 +1,8 @@
 # ADR-031: Foundry Component Integration
 
+**Status:** Accepted  
+**Date:** 2026-09-01  
+
 ## Executive Summary
 
 Integrating the Foundry Component into the PIRTM architecture provides a unified pipeline for legal artifact generation, ensuring deterministic, verifiable outcomes across the system. This ADR documents the design, formal model, and production‑grade scaffolding to manage the integration with Lean 4‑based ADR governance.
