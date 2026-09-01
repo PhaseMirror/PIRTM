@@ -1,9 +1,32 @@
 # ADR-023: Enforce Grammar Quarantine via Separate Kernel Lexer
 
-- **Status**: Accepted
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Compiler Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
 
+## Resolution
+
+1. **`pirtm-kernel-lexer` crate** (`rust/pirtm-kernel-lexer/`) implements kernel-only tokens:
+   - `tensor`, `assert_contractive`, `|>`
+   - `Ap(n)`, `\Lambda_m`, `p_N`
+   - `Ident`, `Integer`, `Float`
+2. **`pirtm-app-lexer` crate** (`rust/pirtm-app-lexer/`) implements application-only tokens:
+   - Control flow: `let`, `mut`, `if`, `else`, `while`, `loop`, `fn`, `struct`, `enum`, `impl`, `match`, `break`, `continue`
+   - Operators, punctuation, string/char literals
+3. **No control-flow tokens in kernel lexer** — The kernel token set is physically purified.
+4. **`pirtm-parser` uses `pirtm-app-lexer`** exclusively for application-level parsing.
+
+## Validation
+
+```bash
+$ ls rust/pirtm-kernel-lexer/src/lib.rs
+rust/pirtm-kernel-lexer/src/lib.rs
+$ ls rust/pirtm-app-lexer/src/lib.rs
+rust/pirtm-app-lexer/src/lib.rs
+$ cargo test -p pirtm-app-lexer
+test tests::test_lex_tokens ... ok
+```
 
 ## Context
 

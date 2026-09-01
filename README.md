@@ -106,9 +106,10 @@ PiLang/
 │   ├── lakefile.toml                          # Mathlib-free, self-contained Lean config
 │   └── PIRTM.lean                             # Canonical mathematical kernel definitions
 └── rust/
+    ├── pirtm-app-lexer/                       # Application-level lexer (control flow, types)
     ├── pirtm-compiler/                        # Compiler CLI, linker, and Lean wrappers
     ├── pirtm-engine/                          # FFI runtime built-ins & execution harness
-    ├── pirtm-lexer/                           # Logos-based high-performance tokenizer
+    ├── pirtm-kernel-lexer/                    # Kernel-only lexer (tensor, Ap, prime operators)
     ├── pirtm-mlir/                            # MLIR dialect operations & AST visitor
     ├── pirtm-monitor/                         # WardMonitor drift & Zeno controller
     ├── pirtm-parser/                          # Recursive descent parser & EBNF decoder
@@ -125,7 +126,7 @@ PiLang/
 - **[ADR-015: Reject False Delivery Packs](docs/ADR-015-Reject-False-Delivery-Pack.md)**: Mandates strict on-tree physical verification.
 - **[ADR-016: Bounded Iteration & Control Flow](docs/ADR-016-Bounded-Iteration-Control-Flow.md)**: Formal proofs for loops, branches, and function composition.
 - **[ADR-017: MLIR Lowering Soundness](docs/ADR-017-Lowering-Soundness.md)**: Machine-checked metric preservation proofs for memory mutation and MLIR emission.
-- **[ADR-018–030: Phase Mirror Audit](docs/)**: Open defects identified by Phase Mirror methodology; see `PIRTM-README-Claim-Table.md` for current ground-truth status.
+- **[ADR-018–030: Phase Mirror Audit](docs/)**: Resolved defects (018, 019, 020, 021, 023, 024, 026, 027, 029, 030) and open items (022, 025, 028); see `PIRTM-README-Claim-Table.md` for current ground-truth status.
 - **[Defensive Publication Whitepaper](docs/DEFENSIVE_PUBLICATION_GOVERNANCE_AS_COMPILATION.md)**: Formal prior art disclosure for Governance-as-Compilation.
 - **[Axiom & Enforcement Ledger](docs/PIRTM-axiom-ledger.md)**: Complete tracking of proof obligations (`AX-001`–`AX-003`) and enforcement mechanisms (`ENF-001`–`ENF-003`).
 - **[Grounded Claim Table](docs/PIRTM-README-Claim-Table.md)**: Full claim-by-claim verification table. **Last audited 2026-09-01.**

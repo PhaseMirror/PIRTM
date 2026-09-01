@@ -1,9 +1,24 @@
 # ADR-020: Fix Export.lean Undefined ADR Reference
 
-- **Status**: Accepted
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
 
+## Resolution
+
+1. **`adr0999` is defined** in `lean/ADR/Examples.lean` as a `Deprecated` prototype ADR.
+2. **`Export.lean` references are valid** — both `exportToDocs` and `printAll` successfully reference `adr0999`.
+3. **Test coverage added** — `Test.lean` includes `adr0999_cannot_become_accepted` theorem and `adrRegistry` maps `⟨999⟩` to `adr0999`.
+
+## Validation
+
+```bash
+$ lake build ADR.Export
+Build completed successfully.
+$ lake build ADR.Test
+Build completed successfully.
+```
 
 ## Context
 

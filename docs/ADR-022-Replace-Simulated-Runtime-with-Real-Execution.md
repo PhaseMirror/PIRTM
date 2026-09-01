@@ -1,9 +1,35 @@
 # ADR-022: Replace Simulated Runtime with Real LLVM IR Execution
 
-- **Status**: Accepted
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Compiler Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
 
+## Resolution
+
+1. **Real execution path implemented** in `rust/pirtm-engine/src/lib.rs`:
+   - `mlir-translate --mlir-to-llvmir` converts `.mlir` to LLVM IR
+   - `llc -filetype=obj` compiles to object file
+   - `clang` links to native binary
+   - Binary is executed with captured stdout, stderr, and return code
+2. **Simulation retained only for `--dry-run`** — `simulate_telemetry_collection` is used exclusively in the `dry_run` branch, matching the ADR decision.
+3. **`ExecutionReceipt` contains genuine process metrics** — `return_code`, `stdout`, and `stderr` come from actual process execution.
+
+## Validation
+
+```rust
+// rust/pirtm-engine/src/lib.rs:72-151
+pub fn run(&mut self) -> Result<ExecutionReceipt, Box<dyn std::error::Error>> {
+    // ... dry_run early return with simulated metrics ...
+    let mlir_status = Command::new("mlir-translate")
+        .arg("--mlir-to-llvmir")
+        .arg(mlir_path)
+        .arg("-o")
+        .arg(&ll_path)
+        .status()?;
+    // ... llc, clang, execute ...
+}
+```
 
 ## Context
 
