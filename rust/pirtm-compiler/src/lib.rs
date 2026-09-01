@@ -8,11 +8,11 @@ pub mod linker;
 pub mod manifest;
 pub mod witness_bytecode;
 pub mod stablehlo_lowering;
+pub mod phase_hypergraph;
 mod translate;
 
-
-
 pub use error::{CompileError, MlirModule, ProofError, ProofReceipt, TranslateError};
+pub use phase_hypergraph::{GeneratorViolation, PhaseHypergraph, EPSILON_CRIT};
 pub use pirtm_mlir::PirtmOp;
 pub use pirtm_parser::ast::{BinOp, Expr, Program, Stmt};
 
@@ -23,6 +23,7 @@ use telemetry_recorder::record_event;
 /// The primary compiler interface for PIRTM programs.
 pub struct PhaseMirrorCompiler {
     validator: AdmissibilityValidator,
+    pub current_topology: Option<PhaseHypergraph>,
 }
 
 impl Default for PhaseMirrorCompiler {
@@ -36,7 +37,51 @@ impl PhaseMirrorCompiler {
     pub fn new() -> Self {
         Self {
             validator: AdmissibilityValidator::new(),
+            current_topology: None,
         }
+    }
+
+    /// Compile PIRTM source to MLIR module with topological pre-flight interlock.
+    pub fn compile_with_topology(
+        &mut self,
+        source: &str,
+        candidate_topology: Option<&PhaseHypergraph>,
+    ) -> Result<MlirModule, CompileError> {
+        if let Some(candidate) = candidate_topology {
+            if let Some(current) = &self.current_topology {
+                match current.verify_transition(candidate) {
+                    Ok(d_phi) => {
+                        let _ = record_event(
+                            "preflight_topology_pass",
+                            json!({ "d_phi": format!("{}/{}", d_phi.numer(), d_phi.denom()) }),
+                        );
+                    }
+                    Err(GeneratorViolation::PhaseDissonance(n, d, cn, cd)) => {
+                        return Err(CompileError::ValidationError {
+                            item: "topology".to_string(),
+                            message: format!(
+                                "SIG_GOV_KILL: Phase Dissonance Breach: D_Phi({}/{}) >= epsilon_crit({}/{})",
+                                n, d, cn, cd
+                            ),
+                        });
+                    }
+                    Err(GeneratorViolation::DimensionMismatch) => {
+                        return Err(CompileError::ValidationError {
+                            item: "topology".to_string(),
+                            message: "Topological Incoherence: dimension mismatch between state hypergraphs".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        let module = self.compile(source)?;
+
+        if let Some(candidate) = candidate_topology {
+            self.current_topology = Some(candidate.clone());
+        }
+
+        Ok(module)
     }
 
     /// Compile PIRTM source to MLIR module.
@@ -159,68 +204,34 @@ mod tests {
         let mlir = compiler.to_mlir(&module).unwrap();
         assert!(mlir.contains("pirtm.operator_atom"));
     }
-}
-pub mod multiplicity_functor;
-pub mod ace_constraints;
 
-use serde::{Deserialize, Serialize};
+    #[test]
+    fn test_compile_with_topology_interlock() {
+        let mut compiler = PhaseMirrorCompiler::new();
+        let mut h1 = PhaseHypergraph::new(2);
+        h1.tensor[0][0] = num_rational::Ratio::new(10, 100);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PirtmType {
-    Stratum,
-    Tensor(Vec<usize>),
-    Transcendental { fn_name: String, arg: Box<PirtmType> },
-}
+        // First transition initializes state
+        let res1 = compiler.compile_with_topology("42", Some(&h1));
+        assert!(res1.is_ok());
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PirtmExpr {
-    Const(i64),
-    Var(String),
-    Add(Box<PirtmExpr>, Box<PirtmExpr>),
-    Sin(Box<PirtmExpr>),
-    Cos(Box<PirtmExpr>),
-    Log(Box<PirtmExpr>),
-}
+        // Contractive transition: Delta = 1/100 < 3/100 -> PASS
+        let mut h2 = PhaseHypergraph::new(2);
+        h2.tensor[0][0] = num_rational::Ratio::new(11, 100);
+        let res2 = compiler.compile_with_topology("42", Some(&h2));
+        assert!(res2.is_ok());
 
-#[derive(Debug, thiserror::Error)]
-pub enum TypeError {
-    #[error("type mismatch: expected {expected:?}, got {actual:?}")]
-    TypeMismatch { expected: PirtmType, actual: PirtmType },
-    #[error("undefined variable: {name}")]
-    UndefinedVar { name: String },
-}
-
-pub fn type_check(
-    ctx: &[(String, PirtmType)],
-    expr: &PirtmExpr,
-) -> Result<PirtmType, TypeError> {
-    match expr {
-        PirtmExpr::Const(_) => Ok(PirtmType::Stratum),
-        PirtmExpr::Var(name) => ctx.iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, t)| t.clone())
-            .ok_or_else(|| TypeError::UndefinedVar { name: name.clone() }),
-        PirtmExpr::Add(e1, e2) => {
-            let t1 = type_check(ctx, e1)?;
-            let t2 = type_check(ctx, e2)?;
-            if t1 == t2 { Ok(t1) } else {
-                Err(TypeError::TypeMismatch { expected: t1, actual: t2 })
-            }
-        }
-        PirtmExpr::Sin(e) | PirtmExpr::Cos(e) | PirtmExpr::Log(e) => {
-            type_check(ctx, e)?;
-            Ok(PirtmType::Transcendental {
-                fn_name: match expr {
-                    PirtmExpr::Sin(_) => "sin".into(),
-                    PirtmExpr::Cos(_) => "cos".into(),
-                    PirtmExpr::Log(_) => "log".into(),
-                    _ => unreachable!(),
-                },
-                arg: Box::new(PirtmType::Stratum),
-            })
-        }
+        // Dissonant transition: Delta = 5/100 >= 3/100 -> FAIL-CLOSED
+        let mut h3 = PhaseHypergraph::new(2);
+        h3.tensor[0][0] = num_rational::Ratio::new(16, 100);
+        let res3 = compiler.compile_with_topology("42", Some(&h3));
+        assert!(res3.is_err());
+        let err_msg = format!("{}", res3.unwrap_err());
+        assert!(err_msg.contains("SIG_GOV_KILL: Phase Dissonance Breach"));
     }
 }
+pub mod type_check;
+pub use type_check::{type_check, PirtmExpr, PirtmType, TypeError};
 
 #[cfg(kani)]
 mod kani_tests {
