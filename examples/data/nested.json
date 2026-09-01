@@ -1,0 +1,13 @@
+{
+  "ensemble": "governance_core",
+  "spectral_params": {
+    "lambda_base": 0.97,
+    "delta_max": 0.03,
+    "lyapunov_tau": 1.03,
+    "r_budget": 5
+  },
+  "invariants": {
+    "small_gain": true,
+    "axiom_clean": true
+  }
+}
