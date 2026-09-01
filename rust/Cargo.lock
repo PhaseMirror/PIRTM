@@ -667,6 +667,7 @@ version = "1.0.0-alpha"
 dependencies = [
  "clap",
  "hex",
+ "num-rational",
  "pirtm-engine",
  "pirtm-mcp",
  "pirtm-mlir",
