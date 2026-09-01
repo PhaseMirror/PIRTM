@@ -807,6 +807,21 @@ impl Parser {
     }
 
     pub fn parse_type(&mut self) -> Result<Type, String> {
+        if self.peek() == Some(Token::Star) {
+            self.next();
+            let is_mut = if self.peek() == Some(Token::Mut) {
+                self.next();
+                true
+            } else if matches!(self.peek(), Some(Token::Ident(ref s)) if s == "const") {
+                self.next();
+                false
+            } else {
+                false
+            };
+            let inner = self.parse_type()?;
+            return Ok(Type::Reference { is_mut, inner: Box::new(inner) });
+        }
+
         if self.peek() == Some(Token::Amp) {
             self.next();
             let is_mut = if self.peek() == Some(Token::Mut) {
