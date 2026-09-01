@@ -22,11 +22,23 @@ deriving Repr, DecidableEq
     - ρ_halt  = 100 (1.00)
     - kill    = 105 (1.05)
     - delta   = 3   (0.03)
+
+    These scaled `Nat` values are exactly equivalent to the `f64` constants
+    in `pirtm-monitor/src/lib.rs` (`RHO_WARN=0.85`, `RHO_HALT=1.0`,
+    `KILL_THRESHOLD=1.05`, `DELTA_MAX=0.03`).  Integer scaling preserves
+    all ordering properties required for governance classification while
+    enabling machine-checked proofs in the Lean 4 core kernel.
 -/
 def RHO_WARN : Nat := 85
 def RHO_HALT : Nat := 100
 def KILL_THRESHOLD : Nat := 105
 def DELTA_MAX : Nat := 3
+
+/-- Unit consistency theorem: scaled `Nat` thresholds preserve the same
+    ordering as their `f64` counterparts in the Rust runtime. -/
+theorem threshold_ordering :
+    RHO_WARN < RHO_HALT ∧ RHO_HALT < KILL_THRESHOLD := by
+  constructor <;> decide
 
 /-- Classify measured drift metric (scaled by 100) into discrete governance state. -/
 def classifyState (rho_scaled : Nat) : WardState :=

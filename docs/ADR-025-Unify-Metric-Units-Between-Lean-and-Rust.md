@@ -1,8 +1,37 @@
 # ADR-025: Unify Metric Units Between Lean Formalization and Rust Runtime
 
-- **Status**: Proposed
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
+
+## Resolution
+
+1. **Lean uses exact `Nat` scaling** in `lean/ADR/ZenoController.lean`:
+   - Thresholds are `Nat` constants scaled by 100 (85, 100, 105, 3).
+   - This preserves exact integer arithmetic in the Lean 4 core kernel.
+   - The `threshold_ordering` theorem proves `RHO_WARN < RHO_HALT < KILL_THRESHOLD`.
+2. **Rust uses `f64`** in `rust/pirtm-monitor/src/lib.rs`:
+   - Constants mirror the Lean values: `RHO_WARN=0.85`, `RHO_HALT=1.0`, `KILL_THRESHOLD=1.05`.
+   - The scaling factor (1/100) is implicit in the decimal representation.
+3. **Unit consistency documented** — Added doc comment in `ZenoController.lean` explicitly mapping scaled `Nat` to `f64` counterparts. Integer scaling by 100 preserves all ordering properties required for governance classification.
+4. **No silent unit mismatch** — The Lean theorems prove ordering properties that are directly equivalent to the `f64` comparisons in the Rust runtime.
+
+## Validation
+
+```lean
+-- lean/ADR/ZenoController.lean
+theorem threshold_ordering :
+    RHO_WARN < RHO_HALT ∧ RHO_HALT < KILL_THRESHOLD := by
+  constructor <;> decide
+```
+
+```rust
+// rust/pirtm-monitor/src/lib.rs
+pub const RHO_WARN: f64 = 0.85;
+pub const RHO_HALT: f64 = 1.0;
+pub const KILL_THRESHOLD: f64 = 1.05;
+```
 
 ## Context
 

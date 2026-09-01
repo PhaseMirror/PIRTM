@@ -70,18 +70,17 @@ impl Runtime {
     }
 
     pub fn run(&mut self) -> Result<ExecutionReceipt, Box<dyn std::error::Error>> {
-        let metrics = telemetry::simulate_telemetry_collection();
-        
-        let hash = if self.config.ledger_enabled {
-            let mut hasher = Sha256::new();
-            let data = format!("{:?}", metrics);
-            hasher.update(data);
-            format!("{:x}", hasher.finalize())
-        } else {
-            "no-ledger".to_string()
-        };
-
         if self.config.dry_run {
+            let metrics = telemetry::simulate_telemetry_collection();
+            let hash = if self.config.ledger_enabled {
+                let mut hasher = Sha256::new();
+                let data = format!("{:?}", metrics);
+                hasher.update(data);
+                format!("{:x}", hasher.finalize())
+            } else {
+                "no-ledger".to_string()
+            };
+
             let mut stdout_buf = String::new();
             if !self.config.input_args.is_empty() {
                 stdout_buf.push_str(&format!("Simulated output for input: {}\n", self.config.input_args.join(" ")));
@@ -140,6 +139,17 @@ impl Runtime {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let return_code = output.status.code().unwrap_or(-1);
+
+        let metrics = telemetry::collect_execution_metrics(stdout.len(), stderr.len(), return_code);
+
+        let hash = if self.config.ledger_enabled {
+            let mut hasher = Sha256::new();
+            let data = format!("{:?}", metrics);
+            hasher.update(data);
+            format!("{:x}", hasher.finalize())
+        } else {
+            "no-ledger".to_string()
+        };
 
         Ok(ExecutionReceipt {
             return_code,

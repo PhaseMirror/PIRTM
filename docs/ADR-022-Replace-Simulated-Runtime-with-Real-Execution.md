@@ -12,7 +12,7 @@
    - `llc -filetype=obj` compiles to object file
    - `clang` links to native binary
    - Binary is executed with captured stdout, stderr, and return code
-2. **Simulation retained only for `--dry-run`** — `simulate_telemetry_collection` is used exclusively in the `dry_run` branch, matching the ADR decision.
+ 2. **Simulation retained only for `--dry-run`** — `simulate_telemetry_collection` is used exclusively in the `dry_run` branch. Real execution uses `collect_execution_metrics` derived from actual process I/O and return code.
 3. **`ExecutionReceipt` contains genuine process metrics** — `return_code`, `stdout`, and `stderr` come from actual process execution.
 
 ## Validation
