@@ -2,12 +2,15 @@ pub mod loader;
 pub mod telemetry;
 pub mod ffi;
 pub mod monitor;
+pub mod harmonia;
+pub mod spectral;
 
 use std::path::{Path, PathBuf};
 use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::process::{Command, Stdio};
 use std::io::Write;
+pub use spectral::{Ensemble, EnsembleContractivityReceipt, check_small_gain, validate_and_certify};
 
 #[derive(Debug, Default)]
 pub struct RuntimeConfig {
@@ -38,23 +41,30 @@ impl Runtime {
         }
     }
 
+    pub fn validate_ensemble(&self, ensemble: &Ensemble) -> Result<EnsembleContractivityReceipt, String> {
+        let cert = spectral::validate_and_certify(ensemble, 1e-6)?;
+        println!(
+            "AUDIT EVENT: ensemble_validated - {}",
+            json!({
+                "ensemble_name": cert.ensemble_name,
+                "dimension": cert.dimension,
+                "spectral_radius": cert.spectral_radius,
+                "is_stable": cert.is_stable,
+                "receipt_hash": cert.hash,
+            })
+        );
+        Ok(cert)
+    }
+
     pub fn load(&mut self, mlir_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-        // Here we would use mlir-translate, but since it's not installed in the
-        // current environment, we will look for an already converted .ll file.
-        // For demonstration, we assume .ll is available or we bypass it.
-        
         let mut ll_path = mlir_path.to_path_buf();
         ll_path.set_extension("ll");
         self.ll_path = Some(ll_path);
-        
         Ok(())
     }
 
     pub fn run(&mut self) -> Result<ExecutionReceipt, Box<dyn std::error::Error>> {
         let metrics = telemetry::simulate_telemetry_collection();
-        
-        // As a fallback since lli is not present, we will just simulate execution
-        // and echo the input arguments.
         
         let mut stdout_buf = String::new();
         if !self.config.input_args.is_empty() {

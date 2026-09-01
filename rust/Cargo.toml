@@ -7,7 +7,8 @@ members = [
     "pirtm-stdlib",
     "pirtm-rs",
     "telemetry-recorder",
-    "pirtm-monitor"
+    "pirtm-monitor",
+    "pirtm-engine"
 ]
 resolver = "2"
 

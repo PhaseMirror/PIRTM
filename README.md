@@ -64,7 +64,7 @@ The capabilities below are physically implemented and verified by automated on-t
 | **Complex Program Lowering** | ✅ Verified | End-to-end lowering of `examples/json_parser.pirtm` (397-line MLIR) |
 | **WardMonitor Runtime Drift** | ✅ Verified | Exponential Zeno damping and `SIG_GOV_KILL` kill-switch |
 | **Sedona Spine CI Gate** | ✅ Verified | `.github/workflows/sedona_spine_ci.yml` on-tree |
-| **Small-Gain Spectral Radius ($\rho < 1.0$)** | ⚠️ In Progress | Manifest float sum in `linker.rs` being replaced by true $\rho(\|A\|\,\mathrm{diag}(\lambda))$ |
+| **Small-Gain Spectral Radius ($\rho < 1.0$)** | ✅ Verified | `pirtm-engine/src/spectral.rs` computing true $\rho(\|A\|\,\mathrm{diag}(\lambda))$ |
 
 ---
 

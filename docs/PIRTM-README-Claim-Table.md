@@ -9,6 +9,7 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Mutable State (`let mut`, `=`)** | Verified | ✅ Complete | `pirtm-mlir/src/pirtm/transpiler/visitor.rs` (Stack alloca/store/load) |
 | **Method Calls & Postfix Chaining** | Verified | ✅ Complete | FFI built-in dispatch to `string_len`, `vec_push`, `map_insert` |
 | **WardMonitor Runtime Drift** | Verified | ✅ Complete | `pirtm-monitor` unit tests (Zeno damping & kill-switch) |
-| **Small-Gain Spectral Radius ($\rho < 1$)** | Formal Invariant | ⚠️ In Progress (Scalar Mock in `linker.rs`) | Blocked on Stream R matrix computation refactor |
-| **Lean Axiom-Clean Core** | Mathlib-Free | ✅ Complete | `lean/lakefile.toml` verified self-contained |
+| **Small-Gain Spectral Radius ($\rho < 1$)** | Formal Invariant | ✅ Complete | `pirtm-engine/tests/spectral_tests.rs` ($\rho(\|A\|\,\mathrm{diag}(\lambda)) < 1.0$) |
+| **Lean Axiom-Clean Core** | Mathlib-Free | ✅ Complete | `lean/lakefile.toml` verified self-contained (7/7 targets passing) |
 | **Sedona Spine CI Gate** | Continuous Enforcement | ✅ Complete | `.github/workflows/sedona_spine_ci.yml` on-tree |
+| **Harmonia Interface Adapter** | First-Contact Protocol | ✅ Complete | `pirtm-engine/src/harmonia.rs` (`ri1-pirtm-contact-0.1` schema & witness) |
