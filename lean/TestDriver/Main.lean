@@ -18,6 +18,10 @@ def main : IO UInt32 := do
   test_registry_reconciliation_promotion
   test_ui_integration_receipt
   test_goldilocks_preservation
+  test_sentinel_never_kills_admissible
+  test_ward_monitor_lyapunov_stability
+  test_poseidon2_soundness
+  test_distributed_governance_consensus
   exportAll
   IO.println "All Lean ADR tests and documentation exports executed successfully."
   return 0

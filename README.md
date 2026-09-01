@@ -1,13 +1,13 @@
-# PIRTM/MOC Sovereign Core
+# PIRTM/MOC Sovereign Core v3.0.0
 
 [![Sedona Spine CI](https://github.com/PhaseMirror/PIRTM/actions/workflows/sedona_spine_ci.yml/badge.svg)](.github/workflows/sedona_spine_ci.yml)
 [![Governed Toolchain CI](https://github.com/PhaseMirror/PIRTM/actions/workflows/governed_toolchain.yml/badge.svg)](.github/workflows/governed_toolchain.yml)
 [![Lean 4: Axiom-Clean](https://img.shields.io/badge/Lean%204-Mathlib--Free%20Core-brightgreen.svg)](lean/)
 [![Rust Workspace](https://img.shields.io/badge/Rust-1.80%2B%20%7C%2021%20Crates-orange.svg)](rust/)
-[![ADR Formal Verification](https://img.shields.io/badge/ADR%20Proofs-ADR--001..046%20100%25-blue.svg)](docs/adr/)
+[![ADR Formal Verification](https://img.shields.io/badge/ADR%20Proofs-ADR--001..050%20100%25-blue.svg)](docs/adr/)
 [![License](https://img.shields.io/badge/License-Prime%20Materia%20Commons-blue.svg)](LICENSE)
 
-**PIRTM/MOC** (Phase Mirror / Multiplicity Object Code) is a formally governed, contractive systems programming language and runtime framework. It integrates a verified mathematical kernel (Sedona Spine, prime-indexed tensor sheaf contractions, Lyapunov drift bounding, and Goldilocks prime field arithmetic) with general-purpose language syntax lowered to MLIR and LLVM, exposed through CLI, MCP, WASM, and a Next.js governed web app.
+**PIRTM/MOC** (Phase Mirror / Multiplicity Object Code) is a formally governed, contractive systems programming language and runtime framework. It integrates a verified mathematical kernel (Sedona Spine, prime-indexed tensor sheaf contractions, Lyapunov drift bounding, Goldilocks prime field arithmetic, Poseidon2 ZK circuits, and multi-node cluster consensus) with general-purpose language syntax lowered to MLIR and LLVM, exposed through CLI, MCP, WASM, Governed HTTP/1.1 server, and a Next.js web application.
 
 ---
 
@@ -15,7 +15,7 @@
 
 - [Architecture Overview](#-architecture-overview)
 - [Grounded Status & Verified Capabilities](#-grounded-status--verified-capabilities)
-- [Formal ADR Registry (ADR-001 through ADR-046)](#-formal-adr-registry-adr-001-through-adr-046)
+- [Formal ADR Registry (ADR-001 through ADR-050)](#-formal-adr-registry-adr-001-through-adr-050)
 - [Locked Governance Constants](#-locked-governance-constants)
 - [Repository Layout](#-repository-layout)
 - [Installation & Quick Start](#-installation--quick-start)
@@ -47,6 +47,7 @@ The PIRTM/MOC architecture enforces structural segregation between formal govern
       │ • Contractivity Assertions    │                 │ • Method Dispatch & FFI       │
       │ • Small-Gain Spectral Radius  │                 │ • scf.if / scf.while / switch │
       │ • Goldilocks Field (F_p)      │                 │ • Poseidon2 ZK Constraints    │
+      │ • Multi-Node Cluster Consensus│                 │ • QMHES Encrypted Tagging     │
       └───────────────┬───────────────┘                 └───────────────┬───────────────┘
                       │                                                 │
                       │                                                 ▼
@@ -59,10 +60,11 @@ The PIRTM/MOC architecture enforces structural segregation between formal govern
                                                ▼
                                ┌───────────────────────────────┐
                                │     Governed Runtime & JIT    │
-                               │  (pirtm-monitor / WASM / MCP) │
+                               │  (pirtm-engine / WASM / MCP)  │
                                ├───────────────────────────────┤
                                │ • Zeno Damping Attenuation    │
                                │ • Real-time Drift Check (δ)   │
+                               │ • Governed HTTP/1.1 Server    │
                                │ • SIG_GOV_KILL Enforcement    │
                                │ • Next.js Playground / UI     │
                                └───────────────────────────────┘
@@ -79,18 +81,21 @@ All core capabilities are physically implemented on-tree and verified by machine
 | **Lexer & Parser** | ✅ Verified | `pirtm-parser/tests/test_json_parser.rs` (17 top-level constructs) |
 | **Mutable State & Structs** | ✅ Verified | Stack `llvm.alloca`, `llvm.store`, `llvm.load` in `pirtm-mlir` |
 | **Complex Lowering** | ✅ Verified | End-to-end lowering of `examples/json_parser.pirtm` (397-line MLIR) |
-| **WardMonitor Runtime Drift** | ✅ Verified | Zeno damping and `SIG_GOV_KILL` tripwire |
+| **WardMonitor Runtime Drift** | ✅ Verified | Formally proven Zeno damping & Lyapunov stability in Lean 4 (ADR-048) |
 | **Small-Gain Spectral Radius ($\rho < 1.0$)** | ✅ Verified | `pirtm-engine::spectral` computing true $\rho(\|A\|\,\mathrm{diag}(\lambda))$ |
-| **Goldilocks Prime Field ($\mathbb{F}_p$)** | ✅ Verified | `pirtm-goldilocks` (12 unit tests, NTT, AVX2/SSE, Kani proof) |
-| **Formal ADR Suite (001–046)** | ✅ Verified | Zero `sorry` in Lean 4 (`lake build && lake test` = 42 jobs green) |
-| **Rust / Kani Verification Substrate** | ✅ Verified | 42 `adr_rust` tests + 100% pass rate across 21 workspace crates |
+| **Goldilocks Prime Field ($\mathbb{F}_p$)** | ✅ Verified | `pirtm-goldilocks` (13 unit tests, NTT, AVX2/SSE, Kani proof) |
+| **Poseidon2 ZK Circuit Engine** | ✅ Verified | 5,087 circuit constraint ZK receipt generator (ADR-049) |
+| **Governed HTTP/1.1 Server** | ✅ Verified | `GovernedHttpServer` with QMHES tagging, ZK receipts & Sentinel gates |
+| **Multi-Node Cluster Consensus** | ✅ Verified | `DistributedGovernanceCluster` with quorum arbitration (ADR-050) |
+| **Formal ADR Suite (001–050)** | ✅ Verified | Zero `sorry` in Lean 4 (`lake build && lake test` = 50 jobs green) |
+| **Rust / Kani Verification Substrate** | ✅ Verified | 46 `adr_rust` tests + 100% pass rate across 21 workspace crates |
 | **Governed Web UI App** | ✅ Verified | Next.js WASM compilation, MLIR preview, MCP API routes, Recharts dashboard |
 
 ---
 
-## 📜 Formal ADR Registry (ADR-001 through ADR-046)
+## 📜 Formal ADR Registry (ADR-001 through ADR-050)
 
-The framework is governed by 46 machine-checked Architecture Decision Records:
+The framework is governed by 50 machine-checked Architecture Decision Records:
 - **ADR-001..030**: Core project setup, grammar authority, toolchain locking, metric unification, and zero-sorry core.
 - **ADR-031..033**: Foundry component integration, prime-recursive foundations, and QMHES post-quantum hybrid encryption.
 - **ADR-034**: Prime-Indexed Dialectical Semantics & Contestation Fields.
@@ -106,6 +111,10 @@ The framework is governed by 46 machine-checked Architecture Decision Records:
 - **ADR-044**: Phase Mirror Comprehensive ADR Registry Reconciliation.
 - **ADR-045**: UI/UX Integration & Governed Toolchain Web Application.
 - **ADR-046**: The Goldilocks Prime Field Backend for ZK Circuit Acceleration.
+- **ADR-047**: Sedona Spine & RSL v5 Sentinel Integration.
+- **ADR-048**: Formal WardMonitor Drift Correction & Lyapunov Stability.
+- **ADR-049**: Poseidon2 ZK-SNARK Circuit Proof Acceleration.
+- **ADR-050**: Multi-Node Distributed Governance Consensus.
 
 ---
 
@@ -123,6 +132,7 @@ Runtime governance parameters derive from the contraction decay modulus $\lambda
 | $\rho_{\text{halt}}$ | `1.00` | Non-contractive boundary limit |
 | `SIG_GOV_KILL` | `1.05` | Hard phase transition threshold |
 | $p_{\text{goldilocks}}$ | `18446744069414584321` | Goldilocks prime modulo $2^{64} - 2^{32} + 1$ |
+| $C_{\text{poseidon2}}$ | `5087` | Poseidon2 ZK circuit constraint bound |
 
 ---
 
@@ -137,17 +147,18 @@ PIRTM/
 │   ├── sedona_spine_ci.yml            # Zero-tolerance CI gate
 │   └── governed_toolchain.yml         # Lean 4 + Cargo + Next.js build pipeline
 ├── docs/
-│   ├── adr/                           # Markdown ADR specifications (001–046) & registry.json
-│   ├── PIRTM_Paper.tex                # Academic paper LaTeX source
+│   ├── adr/                           # Markdown ADR specifications (001–050) & registry.json
+│   ├── PIRTM_Paper.tex                # Academic paper LaTeX source (ADR 001–050)
 │   ├── PIRTM_v3_Release_Synthesis.md  # Technical release synthesis
 │   └── PIRTM-axiom-ledger.md          # Proof debt & enforcement ledger
 ├── lean/
-│   └── Foundations/ADR/               # Canonical Lean 4 proof suite (ADR-001..046)
+│   └── Foundations/ADR/               # Canonical Lean 4 proof suite (ADR-001..050)
 ├── rust/
 │   ├── adr_rust/                      # Kani proof harnesses & Rust models
 │   ├── pirtm-compiler/                # MLIR & bytecode compiler engine
-│   ├── pirtm-engine/                  # Sedona Spine engine & spectral validation
-│   ├── pirtm-goldilocks/              # Goldilocks prime field arithmetic & NTTs
+│   ├── pirtm-engine/                  # Sedona Spine engine & Governed HTTP Server
+│   ├── pirtm-goldilocks/              # Goldilocks prime field arithmetic, NTTs & Poseidon2 ZK
+│   ├── pirtm-orchestration/           # Multi-node Sentinel cluster consensus orchestrator
 │   ├── pirtm-mcp/                     # Model Context Protocol governance server
 │   └── pirtm-web-sdk/                 # Lean/Rust WASM component builders
 ├── pirtm-governed-toolchain/          # Next.js 15 Governed Web App & Playground
@@ -184,9 +195,9 @@ npm run dev
 
 ## 🧪 Testing & Machine Attestation
 
-- **Lean 4 Core**: `lake test` runs 14 theorem test cases across all ADR modules.
+- **Lean 4 Core**: `lake test` runs 18 theorem test cases across all 50 ADR modules (50 jobs built clean).
 - **Cargo Workspace**: `cargo test --workspace` passes 100% of unit tests across 21 crates.
-- **Model Checking**: `cargo kani` verifies bounded model checking harnesses in `adr_rust` and `pirtm-goldilocks`.
+- **Model Checking**: `cargo kani` verifies bounded model checking harnesses in `adr_rust` (46 tests).
 
 ---
 

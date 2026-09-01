@@ -18,7 +18,8 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 nalgebra = { workspace = true }
 anyhow = "1.0"
-tempfile = "3"
+hex = { workspace = true }
 pirtm-monitor = { path = "../pirtm-monitor" }
+goldilocks = { path = "../pirtm-goldilocks" }
 
 [dev-dependencies]

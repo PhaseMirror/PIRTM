@@ -43,3 +43,7 @@ def exportAll : IO Unit := do
   exportADR registryReconciliation (outDir ++ "/ADR-044-Comprehensive-Registry-Reconciliation.md")
   exportADR uiUxIntegration (outDir ++ "/ADR-045-UI-UX-Integration-PIRTM.md")
   exportADR goldilocksFieldIntegration (outDir ++ "/ADR-046-The-Goldilocks-prime-field.md")
+  exportADR sentinelIntegration (outDir ++ "/ADR-0047-Sedona-Spine-RSL-v5-Sentinel.md")
+  exportADR wardMonitorStability (outDir ++ "/ADR-048-WardMonitor-Drift-Correction-Lyapunov-Stability.md")
+  exportADR poseidon2Acceleration (outDir ++ "/ADR-049-Poseidon2-ZK-SNARK-Circuit-Proof-Acceleration.md")
+  exportADR distributedGovernanceConsensus (outDir ++ "/ADR-050-Multi-Node-Distributed-Governance-Consensus.md")

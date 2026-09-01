@@ -4,6 +4,8 @@ pub mod ffi;
 pub mod monitor;
 pub mod harmonia;
 pub mod spectral;
+pub mod governance;
+pub mod http_server;
 
 use std::path::{Path, PathBuf};
 use serde_json::json;
@@ -11,6 +13,8 @@ use sha2::{Sha256, Digest};
 use std::process::{Command, Stdio};
 use std::io::Write;
 pub use spectral::{Ensemble, EnsembleContractivityReceipt, check_small_gain, validate_and_certify};
+pub use governance::Sentinel;
+pub use http_server::{GovernedHttpServer, GovernedHttpResponse};
 
 #[derive(Debug, Default)]
 pub struct RuntimeConfig {

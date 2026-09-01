@@ -1,8 +1,12 @@
-## 🧭 Phase 2 Implementation Plan – Sedona Spine & RSL v5 Sentinel Integration
+# ADR-047: Sedona Spine & RSL v5 Sentinel Integration
+
+- **Status**: Accepted
+- **Deciders**: Phase Mirror Governance, Formal Methods Engineering
+- **Date**: 2026-09-01
+
+## Context
 
 This phase embeds the **dual‑layer contractivity gates** into the runtime core, ensuring that every execution session is validated against both static (registration‑time) and dynamic (empirical stress) bounds, and that any violation triggers an immediate **SIG_GOV_KILL** (fail‑closed halt).
-
----
 
 ### Current State (Before Phase 2)
 

@@ -1,12 +1,11 @@
 #[cfg(target_arch = "x86_64")]
 pub mod avx2;
-/// Goldilocks field: p = 2^64 - 2^32 + 1
-///
-/// This is a 64-bit prime field optimized for STARK proofs.
-/// Operations are performed modulo GOLDILOCKS_PRIME.
 pub mod polynomial;
+pub mod poseidon2;
 #[cfg(target_arch = "x86_64")]
 pub mod sse;
+
+pub use poseidon2::{Poseidon2Sponge, Poseidon2ProofReceipt};
 
 use serde::{Deserialize, Serialize};
 

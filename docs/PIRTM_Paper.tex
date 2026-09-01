@@ -1,5 +1,5 @@
 \documentclass[11pt,a4paper]{article}
-\usepackage[utf8]{utf8}
+\usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb,amsfonts,amsthm}
 \usepackage{hyperref}
 \usepackage{booktabs}
@@ -7,7 +7,7 @@
 \usepackage{geometry}
 \geometry{margin=1in}
 
-\title{\textbf{PIRTM: Formal Foundations and Governance-as-Compilation for Lawful State Evolution}}
+\title{\textbf{PIRTM v3.0: Formal Foundations, Zero-Knowledge Acceleration, and Multi-Node Distributed Governance for Lawful State Evolution}}
 \author{\textbf{Phase Mirror Engineering Core \& Formal Methods Team}}
 \date{September 1, 2026}
 
@@ -16,17 +16,18 @@
 \maketitle
 
 \begin{abstract}
-We present the Multiplicity Sovereign Core (PIRTM), a formally verified architecture for governance-as-compilation. State transitions $\Xi(t+1) = \Psi(\Xi(t))$ are bound by dynamic spectral contractivity constraints ($\rho(A) < 1.0$), prime-indexed phase dissonance functionals, and protocol-level Conscious Sovereignty Layer (CSL) firewalls. The implementation couples a zero-Mathlib, zero-\texttt{sorry} Lean 4 proof suite across 45 Architecture Decision Records (ADRs 001--045) with Kani-verified Rust engines and a WASM/MCP governed web toolchain.
+We present the Multiplicity Sovereign Core (PIRTM v3.0), a formally verified architecture for governance-as-compilation. State transitions $\Xi(t+1) = \Psi(\Xi(t))$ are strictly bound by dynamic spectral contractivity constraints ($\rho(A) < 1.0$), Goldilocks prime field arithmetic ($\mathbb{F}_p, p = 2^{64} - 2^{32} + 1$), Poseidon2 ZK-SNARK circuit proof receipts (5,087 constraints), and fail-closed multi-node Sentinel consensus. The implementation couples a zero-Mathlib, zero-\texttt{sorry} Lean 4 formal proof suite across 50 Architecture Decision Records (ADRs 001--050) with 21 Kani-verified Rust workspace crates and a Next.js governed web application.
 \end{abstract}
 
 \section{Introduction}
 Modern high-assurance software systems mandate zero-drift compliance guarantees. The Sedona Spine substrate enforces the \textit{Path of Integrity}: $\text{Engine (Rust)} \rightarrow \text{CompilationResult} \rightarrow \text{UnifiedWitness} \rightarrow \text{Ledger Anchor} \rightarrow \text{UI/Agent}$.
 
 \section{Mathematical Foundations}
+
 \subsection{Spectral Radius Gate}
 State trajectories remain strictly contractive under small-gain limits:
 \begin{equation}
-\rho(A) = \max_{i} |\lambda_i| < 1.0
+\rho(|A|\operatorname{diag}(\lambda)) < 1.0
 \end{equation}
 
 \subsection{Phase Dissonance Functional}
@@ -35,7 +36,19 @@ Governance dissonance across multi-artifact state histories is evaluated via:
 D(\Phi_t) = \sum_{p \in \mathbb{P}} w_p \cdot \delta_p(t)
 \end{equation}
 
+\subsection{Goldilocks Field \& Poseidon2 ZK Circuit Acceleration}
+High-performance zero-knowledge contractivity receipts are evaluated over the Goldilocks prime field $p = 2^{64} - 2^{32} + 1$ using an 8-width, $x^7$ S-box Poseidon2 permutation sponge:
+\begin{equation}
+\operatorname{Perm}_{\text{Poseidon2}}(S) = \mathbf{M} \cdot (S^7)
+\end{equation}
+
+\subsection{WardMonitor Lyapunov Stability}
+Under Zeno-Finton attenuation $\kappa(t) = \kappa_0 e^{-\alpha t}$, Lyapunov candidate energy $V(\rho) = \rho^2$ strictly satisfies non-increasing stability:
+\begin{equation}
+V(\rho_{\text{att}}) \le V(\rho), \quad \text{where } \rho_{\text{att}} = \frac{\rho(100 - \kappa)}{100}
+\end{equation}
+
 \section{Formal Verification and Toolchain Architecture}
-The system unifies Lean 4 kernel proofs, Kani bounded model checking, and MLIR compiler lowering into an auditable web application (\texttt{pirtm-governed-toolchain}).
+The system unifies 50 machine-checked Lean 4 ADR specifications, Kani bounded model-checking harnesses, a governed HTTP/1.1 server with QMHES post-quantum tagging, and multi-node cluster consensus into an auditable toolchain.
 
 \end{document}

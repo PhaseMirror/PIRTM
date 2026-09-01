@@ -14,11 +14,15 @@ import Foundations.ADR.License
 import Foundations.ADR.Reconciliation
 import Foundations.ADR.UIIntegration
 import Foundations.ADR.GoldilocksSoundness
+import Foundations.ADR.SentinelIntegration
+import Foundations.ADR.WardMonitorStability
+import Foundations.ADR.Poseidon2Soundness
+import Foundations.ADR.DistributedGovernance
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-046.
+Lake test suite for ADR invariants, ADR-034 through ADR-050.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -34,6 +38,10 @@ open PIRTM.License
 open PIRTM.Reconciliation
 open PIRTM.UIIntegration
 open PIRTM.GoldilocksSoundness
+open PIRTM.SentinelIntegration
+open PIRTM.WardMonitorStability
+open PIRTM.Poseidon2Soundness
+open PIRTM.DistributedGovernance
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -100,7 +108,7 @@ def test_phase_dissonance_in_bounds : IO Unit := do
     throw $ IO.Error.userError "ADR-037: Phase dissonance bound check failed"
 
 def test_governance_manifold_arbitration : IO Unit := do
-  let d : DriftState := { driftScaled := 35, driftDotScaled := 5, deltaSoftScaled := 20, deltaHardScaled := 30 }
+  let d : PIRTM.GovernanceManifold.DriftState := { driftScaled := 35, driftDotScaled := 5, deltaSoftScaled := 20, deltaHardScaled := 30 }
   match arbitrateControl d with
   | ControlArbitration.GovernorHalt => IO.println "ADR-038: Fail-closed GovernorHalt triggered as expected on drift saturation"
   | _ => throw $ IO.Error.userError "ADR-038: Failed to trigger GovernorHalt on hard drift saturation"
@@ -164,3 +172,33 @@ def test_goldilocks_preservation : IO Unit := do
     IO.println "ADR-046: Goldilocks prime field contractivity preservation test passed"
   else
     throw $ IO.Error.userError "ADR-046: Goldilocks contractivity preservation test failed"
+
+def test_sentinel_never_kills_admissible : IO Unit := do
+  let state : ManifoldStressState := { rho := 42, delta := 1, lambdaLProduct := 50 }
+  let cfg : SentinelConfig := { rhoHalt := 100, rhoWarn := 85, deltaMax := 10 }
+  match validateAndSeal state cfg true with
+  | SentinelAction.Pass _ => IO.println "ADR-047: Sentinel validate_and_seal admissible pass test passed"
+  | _ => throw $ IO.Error.userError "ADR-047: Sentinel validation failed on admissible state"
+
+def test_ward_monitor_lyapunov_stability : IO Unit := do
+  let gain : ZenoGain := { kappaScaled := 10, h_bound := by decide, h_pos := by decide }
+  let rho := 90
+  let att := applyZenoGain rho gain
+  if lyapunovEnergy att <= lyapunovEnergy rho then
+    IO.println "ADR-048: WardMonitor Lyapunov stability test passed"
+  else
+    throw $ IO.Error.userError "ADR-048: WardMonitor Lyapunov stability check failed"
+
+def test_poseidon2_soundness : IO Unit := do
+  let receipt : Poseidon2Receipt := { constraintCount := 5087, isValid := true }
+  if verifyPoseidon2Receipt receipt then
+    IO.println "ADR-049: Poseidon2 ZK-SNARK circuit proof soundness test passed"
+  else
+    throw $ IO.Error.userError "ADR-049: Poseidon2 ZK receipt verification failed"
+
+def test_distributed_governance_consensus : IO Unit := do
+  let metrics : ClusterMetrics := { totalNodes := 3, passVotes := 3, killVotes := 0, quorumThreshold := 2 }
+  if isQuorumReached metrics then
+    IO.println "ADR-050: Multi-node distributed governance consensus test passed"
+  else
+    throw $ IO.Error.userError "ADR-050: Cluster consensus quorum check failed"

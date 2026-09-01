@@ -399,7 +399,7 @@ mod tests {
     fn test_valid_production_registry() {
         let registry_json = include_str!("../../../docs/adr/registry.json");
         let registry = AdrRegistry::from_json_str(registry_json).expect("Parse registry.json");
-        assert_eq!(registry.adrs.len(), 10);
+        assert_eq!(registry.adrs.len(), 28);
         registry.verify_invariants().expect("Verify invariants");
     }
 

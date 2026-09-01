@@ -10,3 +10,5 @@ rust-version = "1.85"
 
 [dependencies]
 serde = { workspace = true }
+pirtm-engine = { path = "../pirtm-engine" }
+pirtm-monitor = { path = "../pirtm-monitor" }

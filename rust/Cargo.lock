@@ -1410,6 +1410,8 @@ name = "pirtm-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "goldilocks",
+ "hex",
  "nalgebra 0.32.6",
  "num-bigint",
  "num-traits",
@@ -1417,7 +1419,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tempfile",
  "thiserror 1.0.69",
  "tracing",
  "uuid",
@@ -1481,6 +1482,8 @@ dependencies = [
 name = "pirtm-orchestration"
 version = "0.1.0"
 dependencies = [
+ "pirtm-engine",
+ "pirtm-monitor",
  "serde",
 ]
 

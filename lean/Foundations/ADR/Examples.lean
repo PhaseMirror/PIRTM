@@ -267,3 +267,67 @@ def goldilocksFieldIntegration : ADR := {
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-046-The Goldilocks prime field.md", label := "ADR-046 Document"}]
 }
+
+/-- ADR-047: Sedona Spine & RSL v5 Sentinel Integration -/
+def sentinelIntegration : ADR := {
+  id := 47,
+  title := "Sedona Spine & RSL v5 Sentinel Integration",
+  status := ADRStatus.Accepted,
+  context := "Runtime execution requires dual-layer validation binding static small-gain certificates and dynamic stress bounds under fail-closed control.",
+  decision := "Implement Sentinel validate_and_seal gate in pirtm-engine to enforce static small-gain and dynamic drift limits under SIG_GOV_KILL.",
+  consequences := [
+    "Re-verify small gain bounds prior to execution.",
+    "Check dynamic rho, delta, and lambda_L_product bounds continuously.",
+    "Emit signed receipt on pass or trigger SIG_GOV_KILL on breach."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-0047-Sedona Spine & RSL v5 Sentinel.md", label := "ADR-047 Document"}]
+}
+
+/-- ADR-048: Formal WardMonitor Drift Correction & Lyapunov Stability -/
+def wardMonitorStability : ADR := {
+  id := 48,
+  title := "Formal WardMonitor Drift Correction & Lyapunov Stability",
+  status := ADRStatus.Accepted,
+  context := "The runtime drift detector applies dynamic Zeno-Finton gain to attenuate spectral drift; a machine-checked proof is required to guarantee Lyapunov stability.",
+  decision := "Formalize Zeno attenuation in Lean 4 and prove Lyapunov stability V(\\rho_{\\text{att}}) <= V(\\rho).",
+  consequences := [
+    "Machine-check Zeno attenuation boundedness \\rho_{\\text{att}} <= \\rho.",
+    "Prove Lyapunov energy strict non-increase under gain application.",
+    "Close final runtime governance proof gap in Lean 4 core."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-048-WardMonitor-Drift-Correction-Lyapunov-Stability.md", label := "ADR-048 Document"}]
+}
+
+/-- ADR-049: Poseidon2 ZK-SNARK Circuit Proof Acceleration -/
+def poseidon2Acceleration : ADR := {
+  id := 49,
+  title := "Poseidon2 ZK-SNARK Circuit Proof Acceleration",
+  status := ADRStatus.Accepted,
+  context := "Third-party verification of governance contractivity receipts requires accelerated zero-knowledge proof generation.",
+  decision := "Integrate Poseidon2 sponge permutation circuit (5,087 constraints) over Goldilocks prime field in pirtm-goldilocks.",
+  consequences := [
+    "Generate 4-element field hash squeeze outputs for contractivity receipts.",
+    "Enforce 5,087 constraint circuit bound check in Lean 4 Poseidon2Soundness.",
+    "Embed Poseidon2 ZK receipts into GovernedHttpServer responses."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-049-Poseidon2-ZK-SNARK-Circuit-Proof-Acceleration.md", label := "ADR-049 Document"}]
+}
+
+/-- ADR-050: Multi-Node Distributed Governance Consensus -/
+def distributedGovernanceConsensus : ADR := {
+  id := 50,
+  title := "Multi-Node Distributed Governance Consensus",
+  status := ADRStatus.Accepted,
+  context := "Multi-node deployments require quorum-based consensus arbitration over local Sentinel evaluation outcomes.",
+  decision := "Implement DistributedGovernanceCluster in pirtm-orchestration and prove quorum soundness in Lean 4 DistributedGovernance.",
+  consequences := [
+    "Enforce cluster consensus pass iff pass votes >= quorum threshold.",
+    "Emit aggregated cluster receipts or fail-closed SIG_GOV_KILL.",
+    "Synchronize ADR-050 across Lean, Rust, and registry.json."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-050-Multi-Node-Distributed-Governance-Consensus.md", label := "ADR-050 Document"}]
+}
