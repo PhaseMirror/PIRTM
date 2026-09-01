@@ -10,7 +10,9 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Method Calls & Postfix Chaining** | Verified | ✅ Complete | FFI built-in dispatch to `string_len`, `vec_push`, `map_insert` |
 | **WardMonitor Runtime Drift** | Verified | ✅ Complete | `pirtm-monitor` unit tests (Zeno damping & kill-switch) |
 | **Small-Gain Spectral Radius ($\rho < 1$)** | Formal Invariant | ✅ Complete | `pirtm-engine/tests/spectral_tests.rs` & CLI `--ensemble` validation |
-| **Lean Axiom-Clean Core** | Mathlib-Free | ✅ Complete | `lean/lakefile.toml` verified self-contained (8/8 targets passing) |
+| **Lean Axiom-Clean Core** | Mathlib-Free | ✅ Complete | `lean/` verified self-contained (9/9 targets passing) |
 | **Sedona Spine CI Gate** | Continuous Enforcement | ✅ Complete | `.github/workflows/sedona_spine_ci.yml` on-tree |
-| **Harmonia Interface Adapter** | First-Contact Protocol | ✅ Complete | `pirtm-engine/src/harmonia.rs` (`ri1-pirtm-contact-0.1` schema & witness) |
 | **Bounded Iteration Theorems (Phase A)** | Formal Proofs | ✅ Complete | `lean/ADR/BoundedIteration.lean` (`iterate_non_expansive`, zero-sorry) |
+| **MLIR Lowering Soundness (ADR-017)** | Formal Proofs | ✅ Complete | `lean/ADR/LoweringSoundness.lean` (`mlir_lowering_preserves_contractivity`, 9/9 Lean jobs) |
+| **End-to-End JSON Parser Execution** | Governed Runtime | ✅ Complete | `pirtm-engine/tests/json_parser_execution.rs` (Small-gain validation + audit) |
+| **Governed HTTP/1.1 Micro-Server** | Network Application | ✅ Complete | `examples/http_server.pirtm`, `std/net.pirtm`, `http_server_tests.rs` |
