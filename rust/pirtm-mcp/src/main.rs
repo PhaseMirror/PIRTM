@@ -34,7 +34,7 @@ fn main() -> Result<(), anyhow::Error> {
                 if let Ok(stream) = stream {
                     let reader = BufReader::new(stream.try_clone()?);
                     let writer = BufWriter::new(stream);
-                    let _ = server.run_stdio(reader, writer);
+                    let _ = server.run_connection(reader, writer);
                 }
             }
         }

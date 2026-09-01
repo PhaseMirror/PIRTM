@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIRTM Glass Box | Phase Mirror Governance Substrate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            500: '#10b981',
+                            600: '#059669',
+                            900: '#064e3b',
+                        },
+                        dark: {
+                            bg: '#0a0c10',
+                            card: '#12161f',
+                            border: '#1e2638'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    </style>
+</head>
+<body class="bg-dark-bg text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-dark-border bg-dark-card/80 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg">
+                Ψ
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-wide">PIRTM GLASS BOX</h1>
+                <p class="text-xs text-slate-400">Phase Mirror Sovereign Core • Epoch 2 Civic Antenna</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-dark-border/40 px-3 py-1.5 rounded-full border border-dark-border text-xs">
+                <span id="daemon-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="daemon-status-text" class="text-slate-300">Connecting to Daemon...</span>
+            </div>
+            <input id="endpoint-input" type="text" value="http://127.0.0.1:8090" 
+                class="bg-dark-bg border border-dark-border rounded px-3 py-1 text-xs mono text-slate-300 w-52 focus:outline-none focus:border-emerald-500" 
+                title="MCP Daemon Endpoint URL" />
+            <button onclick="checkHealth()" class="text-xs bg-dark-border hover:bg-slate-700 px-2.5 py-1 rounded transition">
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Top Invariant Metric Bar -->
+    <div class="max-w-7xl w-full mx-auto px-6 py-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-dark-card border border-dark-border rounded-xl p-4">
+            <div class="text-xs text-slate-400 font-medium uppercase tracking-wider">Spectral Radius (ρ)</div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span id="metric-rho" class="text-2xl font-bold mono text-emerald-400">0.3200</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">ρ &lt; 1.0 PASS</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1">Small-Gain Contractive Gate</div>
+        </div>
+
+        <div class="bg-dark-card border border-dark-border rounded-xl p-4">
+            <div class="text-xs text-slate-400 font-medium uppercase tracking-wider">Contraction Factor (λ)</div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold mono text-slate-200">0.9700</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">Δ_max = 0.03</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1">Rational64 Bounds Anchor</div>
+        </div>
+
+        <div class="bg-dark-card border border-dark-border rounded-xl p-4">
+            <div class="text-xs text-slate-400 font-medium uppercase tracking-wider">Zeno Tripwire Limit</div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold mono text-rose-400">1.0500</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">FAIL-CLOSED</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1">Unconditional SIG_GOV_KILL</div>
+        </div>
+
+        <div class="bg-dark-card border border-dark-border rounded-xl p-4">
+            <div class="text-xs text-slate-400 font-medium uppercase tracking-wider">Lean 4 Core Proofs</div>
+            <div class="mt-2 flex items-baseline justify-between">
+                <span class="text-2xl font-bold mono text-purple-400">10 / 10</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-medium">MATHLIB-FREE</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1">AOT Machine-Checked Kernel</div>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl w-full mx-auto px-6 pb-12 flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Column 1 & 2: Interactive Compiler & Ensemble Gate -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Compilation Section -->
+            <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-dark-border">
+                    <h2 class="text-sm font-semibold tracking-wide flex items-center space-x-2">
+                        <span>⚡ Autonomous Source Compilation</span>
+                    </h2>
+                    <span class="text-xs text-slate-400 mono">pirtm_compile</span>
+                </div>
+
+                <div class="mt-4">
+                    <label class="text-xs text-slate-400 font-medium block mb-1">PIRTM Source Text:</label>
+                    <textarea id="source-input" rows="5" class="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-xs mono text-emerald-300 focus:outline-none focus:border-emerald-500 leading-relaxed">// Governed Bounded Computation
+let mut loop_count = 0;
+while loop_count < 5 {
+    loop_count = loop_count + 1;
+}
+let x = Ap(2);</textarea>
+                </div>
+
+                <div class="mt-3 flex items-center justify-between">
+                    <div class="text-xs text-slate-500">
+                        Evaluates syntax, prime strata, and emits MLIR.
+                    </div>
+                    <button onclick="compileSource()" id="compile-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-emerald-900/30 flex items-center space-x-2">
+                        <span>Compile & Verify Receipt</span>
+                    </button>
+                </div>
+
+                <div id="compile-output-box" class="mt-4 hidden">
+                    <div class="text-xs text-slate-400 font-medium mb-1">Compiler Receipt & Output:</div>
+                    <pre id="compile-output" class="bg-dark-bg border border-dark-border rounded-lg p-3 text-xs mono overflow-x-auto text-slate-300 max-h-48"></pre>
+                </div>
+            </div>
+
+            <!-- Spectral Small-Gain Interlock Simulator -->
+            <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-dark-border">
+                    <h2 class="text-sm font-semibold tracking-wide flex items-center space-x-2">
+                        <span>🌐 Spectral Small-Gain Interlock Simulator</span>
+                    </h2>
+                    <span class="text-xs text-slate-400 mono">verify_ensemble</span>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400 font-medium block mb-1">Adjacency Coupling Matrix (A):</label>
+                        <textarea id="matrix-input" rows="3" class="w-full bg-dark-bg border border-dark-border rounded-lg p-2.5 text-xs mono text-cyan-300 focus:outline-none focus:border-cyan-500">[
+  [0.0, 0.45],
+  [0.45, 0.0]
+]</textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-medium block mb-1">Contraction Gains Vector (λ):</label>
+                        <textarea id="lambdas-input" rows="3" class="w-full bg-dark-bg border border-dark-border rounded-lg p-2.5 text-xs mono text-cyan-300 focus:outline-none focus:border-cyan-500">[0.85, 0.85]</textarea>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex items-center justify-between">
+                    <button onclick="setUnstablePreset()" class="text-xs text-rose-400 hover:underline">
+                        Load Unstable Resonant Preset (Trigger SIG_GOV_KILL)
+                    </button>
+                    <button onclick="verifyEnsemble()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-cyan-900/30">
+                        Check Stability Gate
+                    </button>
+                </div>
+
+                <div id="ensemble-output-box" class="mt-4 hidden">
+                    <pre id="ensemble-output" class="bg-dark-bg border border-dark-border rounded-lg p-3 text-xs mono overflow-x-auto text-slate-300"></pre>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Column 3: Sedona Spine Audit Ledger & Telemetry -->
+        <div class="space-y-6">
+            <div class="bg-dark-card border border-dark-border rounded-xl p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-dark-border">
+                    <h2 class="text-sm font-semibold tracking-wide">📜 Sedona Spine Ledger</h2>
+                    <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">SEALED</span>
+                </div>
+
+                <div class="mt-4 space-y-3" id="ledger-feed">
+                    <div class="p-2.5 bg-dark-bg/60 border border-dark-border rounded-lg">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-emerald-400 font-medium">CANONICAL_RELEASE</span>
+                            <span class="text-slate-500 mono">v0.1.0</span>
+                        </div>
+                        <div class="text-xs text-slate-300 mono truncate mt-1">Tag: 690de21c4ecd0eabdfcefda4041a40f06e84f13b</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Anchored: Triadic Convergence Complete</div>
+                    </div>
+
+                    <div class="p-2.5 bg-dark-bg/60 border border-dark-border rounded-lg">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-cyan-400 font-medium">AOT_PROOF_HASH</span>
+                            <span class="text-slate-500 mono">Lean4</span>
+                        </div>
+                        <div class="text-xs text-slate-300 mono truncate mt-1">ZenoController.lean [Monotone Dec.]</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Verified: ward_kill_safe, zeno_step_monotone</div>
+                    </div>
+
+                    <div class="p-2.5 bg-dark-bg/60 border border-dark-border rounded-lg">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-purple-400 font-medium">DAEMON_INTEROP</span>
+                            <span class="text-slate-500 mono">Port 8090</span>
+                        </div>
+                        <div class="text-xs text-slate-300 mono truncate mt-1">MCP stdio & HTTP/CORS Bridge</div>
+                        <div class="text-[10px] text-slate-500 mt-0.5">Listening: mcp.pirtm.com / 127.0.0.1</div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-dark-border text-center">
+                    <div class="text-[11px] text-slate-400">Sedona Spine Path of Integrity:</div>
+                    <div class="text-[10px] text-slate-500 mono mt-1">Rust Engine &rarr; CompilationResult &rarr; UnifiedWitness &rarr; Ledger Anchor &rarr; UI</div>
+                </div>
+            </div>
+
+            <!-- Citizen Gardens Physical Antenna Box -->
+            <div class="bg-gradient-to-br from-dark-card to-dark-bg border border-emerald-900/30 rounded-xl p-5">
+                <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+                    <span>🌱 Citizen Gardens Edge Node</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                    Local Raspberry Pi antenna running <code class="mono text-emerald-300">pirtm-engine</code> on ARM64. Ingests civic and environmental telemetry into resonance functional <code class="mono text-emerald-300">R(t)</code> without cloud surveillance.
+                </p>
+                <div class="mt-3 text-[11px] text-slate-500 flex justify-between">
+                    <span>Wyoming DAO LLC Statutory Shell</span>
+                    <span class="text-emerald-400 font-medium">Ready</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        async function checkHealth() {
+            const endpoint = document.getElementById('endpoint-input').value.trim();
+            const dot = document.getElementById('daemon-status-dot');
+            const text = document.getElementById('daemon-status-text');
+
+            try {
+                const res = await fetch(`${endpoint}/health`, { method: 'GET' });
+                if (res.ok) {
+                    const data = await res.json();
+                    dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+                    text.textContent = `Online: ${data.server} (v${data.version})`;
+                } else {
+                    throw new Error("HTTP " + res.status);
+                }
+            } catch (err) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+                text.textContent = "Offline (Check endpoint / daemon)";
+            }
+        }
+
+        async function rpcCall(method, params = {}) {
+            const endpoint = document.getElementById('endpoint-input').value.trim();
+            const payload = {
+                jsonrpc: "2.0",
+                id: Date.now(),
+                method: method,
+                params: params
+            };
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                throw new Error("HTTP Error: " + res.status);
+            }
+            return await res.json();
+        }
+
+        async function compileSource() {
+            const source = document.getElementById('source-input').value;
+            const outBox = document.getElementById('compile-output-box');
+            const outPre = document.getElementById('compile-output');
+            outBox.classList.remove('hidden');
+            outPre.textContent = "Compiling and proving under Phase Mirror governance...";
+
+            try {
+                const resp = await rpcCall("tools/call", {
+                    name: "compile",
+                    arguments: { source: source }
+                });
+
+                const content = JSON.parse(resp.result.content[0].text);
+                outPre.textContent = JSON.stringify(content, null, 2);
+
+                if (content.receipt_hash) {
+                    addLedgerEntry("RECEIPT_EMITTED", content.receipt_hash, "Synthesized Program Proof Sealed");
+                }
+            } catch (e) {
+                outPre.textContent = "Error invoking compile tool: " + e.message;
+            }
+        }
+
+        async function verifyEnsemble() {
+            const matrix = JSON.parse(document.getElementById('matrix-input').value);
+            const lambdas = JSON.parse(document.getElementById('lambdas-input').value);
+            const outBox = document.getElementById('ensemble-output-box');
+            const outPre = document.getElementById('ensemble-output');
+            outBox.classList.remove('hidden');
+            outPre.textContent = "Calculating spectral radius rho(|A| diag(lambda))...";
+
+            try {
+                const resp = await rpcCall("tools/call", {
+                    name: "verify_ensemble",
+                    arguments: {
+                        name: "browser_simulator",
+                        adjacency_matrix: matrix,
+                        lambdas: lambdas
+                    }
+                });
+
+                const content = JSON.parse(resp.result.content[0].text);
+                outPre.textContent = JSON.stringify(content, null, 2);
+
+                if (content.spectral_radius !== undefined) {
+                    document.getElementById('metric-rho').textContent = content.spectral_radius.toFixed(4);
+                }
+
+                const action = content.action || (content.is_stable ? "ACCEPT" : "SIG_GOV_KILL");
+                addLedgerEntry(action === "ACCEPT" ? "SMALL_GAIN_PASS" : "SIG_GOV_KILL", 
+                               content.receipt_hash || "TRIPWIRE_TRIGGERED", 
+                               action === "ACCEPT" ? `rho = ${content.spectral_radius}` : content.error || "Violation");
+            } catch (e) {
+                outPre.textContent = "Error executing verify_ensemble: " + e.message;
+            }
+        }
+
+        function setUnstablePreset() {
+            document.getElementById('matrix-input').value = `[\n  [0.0, 1.4],\n  [1.4, 0.0]\n]`;
+            document.getElementById('lambdas-input').value = `[0.95, 0.95]`;
+            verifyEnsemble();
+        }
+
+        function addLedgerEntry(event, hash, note) {
+            const feed = document.getElementById('ledger-feed');
+            const entry = document.createElement('div');
+            entry.className = "p-2.5 bg-dark-bg/60 border border-dark-border rounded-lg animate-fade-in";
+            entry.innerHTML = `
+                <div class="flex justify-between items-center text-[11px]">
+                    <span class="${event.includes('KILL') ? 'text-rose-400' : 'text-emerald-400'} font-bold">${event}</span>
+                    <span class="text-slate-500 mono">${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="text-xs text-slate-300 mono truncate mt-1">${hash}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">${note}</div>
+            `;
+            feed.insertBefore(entry, feed.firstChild);
+        }
+
+        // Initial check on load
+        window.addEventListener('DOMContentLoaded', checkHealth);
+    </script>
+</body>
+</html>

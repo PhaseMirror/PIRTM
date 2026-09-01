@@ -283,7 +283,7 @@ contractivity_receipt = "pending"
                         if let Ok(stream) = stream {
                             let reader = std::io::BufReader::new(stream.try_clone()?);
                             let writer = std::io::BufWriter::new(stream);
-                            let _ = server.run_stdio(reader, writer);
+                            let _ = server.run_connection(reader, writer);
                         }
                     }
                 }
