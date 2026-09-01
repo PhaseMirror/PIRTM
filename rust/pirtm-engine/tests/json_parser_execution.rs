@@ -2,6 +2,7 @@ use pirtm_engine::{spectral::Ensemble, Runtime, RuntimeConfig};
 use std::path::Path;
 
 #[test]
+#[ignore = "Requires LLVM toolchain (mlir-translate, llc, clang) to be in PATH"]
 fn test_end_to_end_json_parser_execution() {
     let ensemble = Ensemble::new(
         "json_parser_pipeline",
@@ -13,6 +14,7 @@ fn test_end_to_end_json_parser_execution() {
     );
 
     let config = RuntimeConfig {
+        dry_run: false,
         jid_enabled: false,
         ledger_enabled: true,
         enforce_bounds: true,

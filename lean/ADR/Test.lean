@@ -2,6 +2,8 @@
 import ADR.Core
 import ADR.Proofs
 import ADR.Examples
+import ADR.Export
+
 
 namespace ADR
 
@@ -65,19 +67,6 @@ theorem accepted_supersedes_not_proposed :
     ADRStatus.Accepted ADRStatus.Superseded (some ⟨1⟩)
     rfl (by simp [validTransition])
 
-/--
-A deprecated ADR prototype.
--/
-def adr0999 : ADR := {
-  id := ⟨999⟩,
-  title := "Deprecated Prototype",
-  status := ADRStatus.Deprecated,
-  context := "Early prototype",
-  decision := "Superseded by formal system",
-  consequences := ["Legacy code removed"],
-  supersedes := none,
-  links := []
-}
 
 /--
 adr0999 is deprecated, so it cannot become accepted.
@@ -209,7 +198,9 @@ def printTestSummary : IO Unit := do
   IO.println "All tests passed."
 
 end ADR
-
 def main : IO Unit := do
   ADR.printTestSummary
+  -- Ensure that export routines are also type-checked and run during testing
+  ADR.exportToDocs
+  ADR.printAll
 

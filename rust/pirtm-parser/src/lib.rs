@@ -3,7 +3,7 @@
 pub mod ast;
 pub use ast::{BinOp, EnsembleDecl, Expr, ImportStmt, LogicalOp, Program, Stmt, Type};
 
-use pirtm_lexer::{tokenize, Token};
+use pirtm_app_lexer::{tokenize, Token};
 
 pub struct Parser {
     pub tokens: Vec<Token>,

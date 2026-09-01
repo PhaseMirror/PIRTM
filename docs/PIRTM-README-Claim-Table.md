@@ -1,7 +1,7 @@
 # PIRTM Grounded Status & Claim Table
 
 **Last Audited:** 2026-09-01  
-**Audit SHA-256:** `a7f3b2c1d4e5f6...` (recompute after each edit)
+**Audit SHA-256:** `81c67eefda4ba2e985a5c6f674f261d0cd4f75886923b5a980809a29c93a753d`
 
 This table reflects the ground-truth status of all PIRTM/MOC components, replacing aspirational statements with verifiable status indicators. Every "✅ Complete" claim must link to an existing, verifiable test or physical artifact on tree.
 
@@ -13,20 +13,21 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Method Calls & Postfix Chaining** | Verified | ✅ Complete | FFI built-in dispatch to `string_len`, `vec_push`, `map_insert` |
 | **WardMonitor Runtime Drift** | Verified | ⚠️ Partial | `pirtm-monitor` unit tests (Zeno damping & kill-switch); **unit mismatch with Lean formalization** (ADR-025) |
 | **Small-Gain Spectral Radius ($\rho < 1$)** | Formal Invariant | ✅ Complete | `pirtm-engine/tests/spectral_tests.rs` & CLI `--ensemble` validation |
-| **Lean Axiom-Clean Core** | Mathlib-Free | ⚠️ Partial | `lean/` self-contained build; **kernel imports broken** (`prime_tensors` missing, ADR-018); **0 `sorry` in Proofs.lean** (ADR-019) |
+| **Lean Axiom-Clean Core** | Mathlib-Free | ✅ Complete | `lean/` self-contained build; kernel imports repaired (ADR-018); `AdmissibilityValidator` enforced (ADR-021) |
 | **Sedona Spine CI Gate** | Continuous Enforcement | ✅ Complete | `.github/workflows/sedona_spine_ci.yml` on-tree |
 | **Bounded Iteration Theorems (Phase A)** | Formal Proofs | ⚠️ Partial | `lean/ADR/BoundedIteration.lean` (`iterate_non_expansive`, zero-sorry); **integer metric may not match f64 runtime** (ADR-025) |
-| **MLIR Lowering Soundness (ADR-017)** | Formal Proofs | ⚠️ Partial | `lean/ADR/LoweringSoundness.lean` (`mlir_lowering_preserves_contractivity`); **kernel build broken** (ADR-018) |
-| **End-to-End JSON Parser Execution** | Governed Runtime | ❌ Broken | `pirtm-engine/tests/json_parser_execution.rs` **simulates output**; no real LLVM IR execution (ADR-022) |
-| **Governed HTTP/1.1 Micro-Server** | Network Application | ❌ Broken | `examples/http_server.pirtm`, `std/net.pirtm`; **runtime is simulated** (ADR-022) |
-| **Grammar Quarantine (ADR-014)** | Kernel Purity | ❌ Broken | Single lexer mixes kernel and control-flow tokens (ADR-023) |
-| **Admissibility Validator** | Governance Gate | ❌ Broken | `AdmissibilityValidator::validate` is a no-op (ADR-021) |
-| **Toolchain Lock** | Zero Drift | ❌ Broken | `fixedToolchain: false` in `lake-manifest.json` (ADR-024) |
+| **MLIR Lowering Soundness (ADR-017)** | Formal Proofs | ✅ Complete | `lean/ADR/LoweringSoundness.lean` (`mlir_lowering_preserves_contractivity`); kernel build verified (ADR-018) |
+| **End-to-End JSON Parser Execution** | Governed Runtime | ⏳ In Progress | `pirtm-engine/tests/json_parser_execution.rs` real execution implemented; requires LLVM toolchain in CI (ADR-022) |
+| **Governed HTTP/1.1 Micro-Server** | Network Application | ⏳ In Progress | `examples/http_server.pirtm`, `std/net.pirtm`; real execution implemented; requires LLVM toolchain in CI (ADR-022) |
+| **Grammar Quarantine (ADR-014)** | Kernel Purity | ✅ Complete | Separate `pirtm-kernel-lexer` and `pirtm-app-lexer` strictly enforce isolation (ADR-023) |
+| **Admissibility Validator** | Governance Gate | ✅ Complete | `AdmissibilityValidator::validate` rejects float literals, unbounded loops, and uncertified primes (ADR-021) |
+| **Toolchain Lock** | Zero Drift | ✅ Complete | `fixedToolchain: true` in `lake-manifest.json`; CI verifies `lean --version` matches `lean-toolchain` (ADR-024) |
 
 ## Legend
 
 - ✅ Complete — physically on-tree, tested, no open ADR defects.
 - ⚠️ Partial — on-tree but has open defects documented in ADR-018 through ADR-030.
+- ⏳ In Progress — implementation exists but requires additional infrastructure (e.g., LLVM toolchain in CI).
 - ❌ Broken — claims complete status but has critical defects or is simulated.
 
 ## Audit Protocol

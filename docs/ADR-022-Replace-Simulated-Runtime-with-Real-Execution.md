@@ -1,8 +1,9 @@
 # ADR-022: Replace Simulated Runtime with Real LLVM IR Execution
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Deciders**: Phase Mirror Governance, Compiler Engineering
 - **Date**: 2026-09-01
+
 
 ## Context
 

@@ -3,4 +3,5 @@
  "packages": [],
  "name": "PiLang",
  "lakeDir": ".lake",
- "fixedToolchain": false}
+ "fixedToolchain": true,
+ "toolchain": "leanprover/lean4:v4.33.0-rc2"}

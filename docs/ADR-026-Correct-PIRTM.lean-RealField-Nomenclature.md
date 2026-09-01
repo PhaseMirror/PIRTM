@@ -1,8 +1,24 @@
 # ADR-026: Correct PIRTM.lean RealField Nomenclature
 
-- **Status**: Proposed
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
+
+## Resolution
+
+1. **Renamed `RealField` to `DivLoop`** in `lean/PIRTM.lean`:
+   - `class DivLoop (F : Type)` now declares `mul`, `div`, `zero`, and `div_cancel`.
+   - All references (`dynamicScalingFactor`, `adaptiveLambda`, `k_equals_kappa`) updated to use `DivLoop`.
+2. **No other files required changes** — `RealField` was not imported or referenced outside `PIRTM.lean`.
+3. **Future extensibility preserved** — `DivLoop` can be extended with `add`, `one`, distributivity, etc. to form a genuine field class without breaking existing proofs.
+
+## Validation
+
+```bash
+$ lake build --rehash
+Build completed successfully (18 jobs).
+```
 
 ## Context
 

@@ -29,12 +29,14 @@ def entails (j : Justification) : Bool :=
 
 /--
 Build a justification from an ADR's context and decision by treating
-every non-empty line as an atomic premise.
+every non-empty line as an atomic premise.  One justification is produced
+per consequence, pairing the shared premise set with the actual consequence.
 -/
-def fromADR (a : ADR) : Justification :=
+def fromADR (a : ADR) : List Justification :=
   let ctxLines := (a.context.split (· == '\n')).map (·.toString) |>.filter (· != "") |>.toList
   let decLines := (a.decision.split (· == '\n')).map (·.toString) |>.filter (· != "") |>.toList
-  ⟨ctxLines ++ decLines, "dummy"⟩
+  let premises := ctxLines ++ decLines
+  a.consequences.map (fun c => ⟨premises, c⟩)
 
 end Justification
 
@@ -152,6 +154,7 @@ inductive Reconstructible (lookup : ADRId → Option ADR) : ADR → Prop where
       lookup targetId = some target →
       Reconstructible lookup target →
       Reconstructible lookup a
+
 
 /--
 If an ADR is `Accepted` and has no supersession target, it is trivially

@@ -18,7 +18,8 @@ def toMarkdown (a : ADR) : String :=
     | some id => s!"ADR-{id.value}"
   let linksStr := match a.links with
     | [] => "None"
-    | links => String.intercalate "\n" (links.map (fun l => s!"- [{l.artifactType}] {l.identifier}"))
+    | links => String.intercalate "\n" (links.map (fun (l : ArtifactLink) => s!"- [{l.artifactType}] {l.identifier}"))
+
   s!"# {a.id} — {a.title}\n\n" ++
   s!"**Status:** {statusStr}\n\n" ++
   s!"**Supersedes:** {supersedesStr}\n\n" ++

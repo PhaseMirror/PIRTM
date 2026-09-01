@@ -1,8 +1,9 @@
 # ADR-020: Fix Export.lean Undefined ADR Reference
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+
 
 ## Context
 

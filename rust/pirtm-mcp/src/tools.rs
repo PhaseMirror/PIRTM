@@ -224,6 +224,7 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
             let path = temp_file.path();
 
             let config = RuntimeConfig {
+                dry_run: false,
                 jid_enabled: false,
                 ledger_enabled: true,
                 enforce_bounds: true,

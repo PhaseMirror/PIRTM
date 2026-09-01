@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "pirtm-parser",
-    "pirtm-lexer",
+    "pirtm-app-lexer",
+    "pirtm-kernel-lexer",
     "pirtm-compiler",
     "pirtm-mlir",
     "pirtm-stdlib",

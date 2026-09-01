@@ -14,4 +14,11 @@ jobs:
       - uses: leanprover/elan@v1
         with:
           toolchain: leanprover/lean4:v4.33.0-rc2
+      - run: |
+          EXPECTED=$(cat lean-toolchain | tr -d '\n')
+          ACTUAL=$(lean --version | awk '{print $3}')
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::Toolchain drift detected: expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
       - run: lake build

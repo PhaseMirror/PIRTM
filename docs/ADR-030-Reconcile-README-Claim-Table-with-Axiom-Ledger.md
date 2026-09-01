@@ -1,8 +1,27 @@
 # ADR-030: Reconcile README Claim Table with Axiom Ledger
 
-- **Status**: Proposed
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Documentation
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
+
+## Resolution
+
+1. **Audited all claims** in `docs/PIRTM-README-Claim-Table.md` against physical on-tree evidence:
+   - Verified test files exist and are referenced correctly.
+   - Confirmed open ADR defects are reflected with appropriate status markers (⚠️ Partial, ⏳ In Progress).
+   - Downgraded stale "✅ Complete" claims where blocking defects remain (e.g., ADR-022, ADR-025).
+2. **Synchronized `artifacts/PIRTM-README-Claim-Table.md`** with the canonical `docs/` version to eliminate divergence.
+3. **Pinned audit hash** — Replaced placeholder SHA-256 with actual digest of the claim table:
+   `81c67eefda4ba2e985a5c6f674f261d0cd4f75886923b5a980809a29c93a753d`
+4. **Legend expanded** — Added explicit `⏳ In Progress` marker for implementations that exist but require additional CI infrastructure.
+
+## Validation
+
+```bash
+$ sha256sum docs/PIRTM-README-Claim-Table.md
+81c67eefda4ba2e985a5c6f674f261d0cd4f75886923b5a980809a29c93a753d  docs/PIRTM-README-Claim-Table.md
+```
 
 ## Context
 

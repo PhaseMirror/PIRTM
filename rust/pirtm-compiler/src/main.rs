@@ -14,7 +14,126 @@ impl AdmissibilityValidator {
     fn new() -> Self {
         Self {}
     }
-    fn validate(&self, _ast: &pirtm_parser::ast::Expr) -> Result<(), String> {
+    fn validate(&self, ast: &pirtm_parser::ast::Expr) -> Result<(), String> {
+        match ast {
+            pirtm_parser::ast::Expr::FloatLit(_) => {
+                Err("L0 Invariant Violation: floating-point literal used as stability proof is forbidden".to_string())
+            }
+            pirtm_parser::ast::Expr::Atom { prime: n } => {
+                self.validate_prime(*n).map_err(|e| format!("Prime operator violation: {}", e))?;
+                Ok(())
+            }
+            pirtm_parser::ast::Expr::Binary { left, right, .. } => {
+                self.validate(left)?;
+                self.validate(right)
+            }
+            pirtm_parser::ast::Expr::Call { args, .. } => {
+                args.iter().try_for_each(|arg| self.validate(arg))
+            }
+            pirtm_parser::ast::Expr::If {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
+                self.validate(cond)?;
+                for stmt in then_branch {
+                    self.validate_stmt(stmt)?;
+                }
+                if let Some(else_branch) = else_branch {
+                    for stmt in else_branch {
+                        self.validate_stmt(stmt)?;
+                    }
+                }
+                Ok(())
+            }
+            pirtm_parser::ast::Expr::Successor(e)
+            | pirtm_parser::ast::Expr::StratumBoundary(e)
+            | pirtm_parser::ast::Expr::PrimeShift(e)
+            | pirtm_parser::ast::Expr::Sin(e)
+            | pirtm_parser::ast::Expr::Cos(e)
+            | pirtm_parser::ast::Expr::Log(e)
+            | pirtm_parser::ast::Expr::Not(e)
+            | pirtm_parser::ast::Expr::Try(e) => self.validate(e),
+            pirtm_parser::ast::Expr::LogicalOp { left, right, .. } => {
+                self.validate(left)?;
+                self.validate(right)
+            }
+            pirtm_parser::ast::Expr::MethodCall { obj, args, .. } => {
+                self.validate(obj)?;
+                args.iter().try_for_each(|arg| self.validate(arg))
+            }
+            pirtm_parser::ast::Expr::Tuple(elems) => {
+                elems.iter().try_for_each(|elem| self.validate(elem))
+            }
+            pirtm_parser::ast::Expr::StructInit { fields, .. } => {
+                fields.iter().try_for_each(|(_, expr)| self.validate(expr))
+            }
+            pirtm_parser::ast::Expr::FieldAccess { obj, .. } => self.validate(obj),
+            pirtm_parser::ast::Expr::Match { expr, arms, .. } => {
+                self.validate(expr)?;
+                for (_, stmts) in arms {
+                    for stmt in stmts {
+                        self.validate_stmt(stmt)?;
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn validate_stmt(&self, stmt: &pirtm_parser::ast::Stmt) -> Result<(), String> {
+        match stmt {
+            pirtm_parser::ast::Stmt::Loop { cond: None, .. } => {
+                Err("L0 Invariant Violation: unbounded loop without explicit bound annotation".to_string())
+            }
+            pirtm_parser::ast::Stmt::Expr(expr) => self.validate(expr),
+            pirtm_parser::ast::Stmt::Let { expr, .. }
+            | pirtm_parser::ast::Stmt::LetMut { expr, .. }
+            | pirtm_parser::ast::Stmt::Assign { expr, .. } => self.validate(expr),
+            pirtm_parser::ast::Stmt::Return(Some(expr)) => self.validate(expr),
+            pirtm_parser::ast::Stmt::Block(stmts) => {
+                stmts.iter().try_for_each(|stmt| self.validate_stmt(stmt))
+            }
+            pirtm_parser::ast::Stmt::If {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
+                self.validate(cond)?;
+                for stmt in then_branch {
+                    self.validate_stmt(stmt)?;
+                }
+                if let Some(else_branch) = else_branch {
+                    for stmt in else_branch {
+                        self.validate_stmt(stmt)?;
+                    }
+                }
+                Ok(())
+            }
+            pirtm_parser::ast::Stmt::FnDef { body, .. } => {
+                body.iter().try_for_each(|stmt| self.validate_stmt(stmt))
+            }
+            pirtm_parser::ast::Stmt::ImplDef { methods, .. } => {
+                methods.iter().try_for_each(|stmt| self.validate_stmt(stmt))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn validate_prime(&self, n: u64) -> Result<(), String> {
+        if n < 2 {
+            return Err(format!("prime_index {} is not a prime", n));
+        }
+        let limit = (n as f64).sqrt() as u64;
+        for i in 2..=limit {
+            if n % i == 0 {
+                return Err(format!(
+                    "prime_index {} is not a prime (divisible by {})",
+                    n, i
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -113,11 +232,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let validator = AdmissibilityValidator::new();
             for stmt in &program.stmts {
-                if let pirtm_parser::ast::Stmt::Expr(ref expr) = stmt {
-                    validator
-                        .validate(expr)
-                        .map_err(|e| format!("Validation error: {}", e))?;
-                }
+                validator
+                    .validate_stmt(stmt)
+                    .map_err(|e| format!("Validation error: {}", e))?;
             }
 
             let mut visitor = MlirEmitterVisitor::new();

@@ -14,6 +14,7 @@ clap = { version = "4.4", features = ["derive"] }
 sha2 = "0.10"
 hex = "0.4"
 pirtm-parser = { path = "../pirtm-parser" }
+pirtm-kernel-lexer = { path = "../pirtm-kernel-lexer" }
 pirtm-mlir = { path = "../pirtm-mlir" }
 pirtm-mcp = { path = "../pirtm-mcp" }
 

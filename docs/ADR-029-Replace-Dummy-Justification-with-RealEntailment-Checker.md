@@ -1,8 +1,26 @@
 # ADR-029: Replace Dummy Justification with Real Entailment Checker
 
-- **Status**: Proposed
+- **Status**: Resolved
 - **Deciders**: Phase Mirror Governance, Formal Methods Engineering
 - **Date**: 2026-09-01
+- **Resolved**: 2026-09-01
+
+## Resolution
+
+1. **`fromADR` reimplemented** in `lean/ADR/Proofs.lean`:
+   - Changed return type from `Justification` to `List Justification`.
+   - Each justification now pairs the shared premise set (non-empty lines from `context` and `decision`) with the actual consequence string from `a.consequences`.
+   - Eliminated the hardcoded `"dummy"` conclusion.
+2. **Entailment checker is now meaningful** — `entails` checks whether each actual consequence text appears in the premise set, rather than always failing on a placeholder.
+3. **Existing proofs preserved** — `accepted_adr_consequences_nonempty` and `accepted_adr_explicitly_justified` were already proven without `sorry`; no changes needed.
+4. **`Test.lean` explicit justifications** — `adr1001Justifications` already uses real consequence strings, demonstrating the intended usage pattern.
+
+## Validation
+
+```bash
+$ lake build ADR.Proofs
+Build completed successfully (3 jobs).
+```
 
 ## Context
 

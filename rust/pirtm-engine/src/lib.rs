@@ -14,6 +14,7 @@ pub use spectral::{Ensemble, EnsembleContractivityReceipt, check_small_gain, val
 
 #[derive(Debug, Default)]
 pub struct RuntimeConfig {
+    pub dry_run: bool,
     pub jid_enabled: bool,
     pub ledger_enabled: bool,
     pub enforce_bounds: bool,
@@ -30,14 +31,14 @@ pub struct ExecutionReceipt {
 
 pub struct Runtime {
     pub config: RuntimeConfig,
-    ll_path: Option<PathBuf>,
+    mlir_path: Option<PathBuf>,
 }
 
 impl Runtime {
     pub fn new(config: RuntimeConfig) -> Self {
         Self {
             config,
-            ll_path: None,
+            mlir_path: None,
         }
     }
 
@@ -64,20 +65,13 @@ impl Runtime {
     }
 
     pub fn load(&mut self, mlir_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-        let mut ll_path = mlir_path.to_path_buf();
-        ll_path.set_extension("ll");
-        self.ll_path = Some(ll_path);
+        self.mlir_path = Some(mlir_path.to_path_buf());
         Ok(())
     }
 
     pub fn run(&mut self) -> Result<ExecutionReceipt, Box<dyn std::error::Error>> {
         let metrics = telemetry::simulate_telemetry_collection();
         
-        let mut stdout_buf = String::new();
-        if !self.config.input_args.is_empty() {
-            stdout_buf.push_str(&format!("Simulated output for input: {}\n", self.config.input_args.join(" ")));
-        }
-
         let hash = if self.config.ledger_enabled {
             let mut hasher = Sha256::new();
             let data = format!("{:?}", metrics);
@@ -87,12 +81,73 @@ impl Runtime {
             "no-ledger".to_string()
         };
 
+        if self.config.dry_run {
+            let mut stdout_buf = String::new();
+            if !self.config.input_args.is_empty() {
+                stdout_buf.push_str(&format!("Simulated output for input: {}\n", self.config.input_args.join(" ")));
+            }
+            return Ok(ExecutionReceipt {
+                return_code: 0,
+                stdout: stdout_buf,
+                stderr: String::new(),
+                metrics,
+                contractivity_hash: hash,
+            });
+        }
+
+        let mlir_path = self.mlir_path.as_ref().ok_or("No module loaded")?;
+        
+        let ll_path = mlir_path.with_extension("ll");
+        let obj_path = mlir_path.with_extension("o");
+        let bin_path = mlir_path.with_extension("bin");
+
+        let mlir_status = Command::new("mlir-translate")
+            .arg("--mlir-to-llvmir")
+            .arg(mlir_path)
+            .arg("-o")
+            .arg(&ll_path)
+            .status()?;
+        
+        if !mlir_status.success() {
+            return Err(format!("mlir-translate failed with status: {}", mlir_status).into());
+        }
+
+        let llc_status = Command::new("llc")
+            .arg("-filetype=obj")
+            .arg(&ll_path)
+            .arg("-o")
+            .arg(&obj_path)
+            .status()?;
+
+        if !llc_status.success() {
+            return Err(format!("llc failed with status: {}", llc_status).into());
+        }
+
+        let clang_status = Command::new("clang")
+            .arg(&obj_path)
+            .arg("-o")
+            .arg(&bin_path)
+            .status()?;
+
+        if !clang_status.success() {
+            return Err(format!("clang failed with status: {}", clang_status).into());
+        }
+
+        let output = Command::new(&bin_path)
+            .args(&self.config.input_args)
+            .output()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let return_code = output.status.code().unwrap_or(-1);
+
         Ok(ExecutionReceipt {
-            return_code: 0,
-            stdout: stdout_buf,
-            stderr: String::new(),
+            return_code,
+            stdout,
+            stderr,
             metrics,
             contractivity_hash: hash,
         })
     }
 }
+

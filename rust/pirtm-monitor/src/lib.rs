@@ -17,6 +17,14 @@ fn record_event(name: &str, payload: serde_json::Value) {
 //  Configuration
 // ──────────────────────────────────────────────────────────────
 
+// Shared metric constants mirroring Lean Rat definitions
+pub const RHO_WARN: f64 = 0.85;
+pub const RHO_HALT: f64 = 1.0;
+pub const KILL_THRESHOLD: f64 = 1.05;
+pub const DELTA_MAX: f64 = 1e-4;
+pub const KAPPA0: f64 = 1.0;
+pub const ALPHA: f64 = 0.1;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MonitorConfig {
     pub rho_warn: f64,
@@ -30,11 +38,11 @@ pub struct MonitorConfig {
 impl Default for MonitorConfig {
     fn default() -> Self {
         Self {
-            rho_warn: 0.85,
-            rho_halt: 1.0,
-            delta_max: 1e-4,
-            kappa0: 1.0,
-            alpha: 0.1,
+            rho_warn: RHO_WARN,
+            rho_halt: RHO_HALT,
+            delta_max: DELTA_MAX,
+            kappa0: KAPPA0,
+            alpha: ALPHA,
             poll_interval_ms: 100,
         }
     }

@@ -9,6 +9,22 @@ Join a list of strings with newline separators.
 def unlines (lines : List String) : String :=
   lines.foldl (fun acc s => if acc.isEmpty then s else acc ++ "\n" ++ s) ""
 
+/-! ## Example 0: Deprecated Prototype -/
+
+/--
+A deprecated ADR prototype.
+-/
+def adr0999 : ADR := {
+  id := ⟨999⟩,
+  title := "Deprecated Prototype",
+  status := ADRStatus.Deprecated,
+  context := "Early prototype",
+  decision := "Superseded by formal system",
+  consequences := ["Legacy code removed"],
+  supersedes := none,
+  links := []
+}
+
 /-! ## Example 1: Control Flow & Functions (Phase A) -/
 
 /--
@@ -204,10 +220,12 @@ and traceability demonstrations.
 -/
 def adrRegistry : ADRId → Option ADR
   | ⟨14⟩ => some adr014
+  | ⟨999⟩ => some adr0999
   | ⟨1001⟩ => some adr1001
   | ⟨1002⟩ => some adr1002
   | ⟨1003⟩ => some adr1003
   | ⟨1004⟩ => some adr1004
   | _ => none
+
 
 end ADR

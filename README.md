@@ -147,7 +147,6 @@ cargo run -p pirtm-compiler --bin pirtm -- compile ../examples/json_parser.pirtm
 
 ### 3. Verify Lean 4 Axiom-Clean Core
 ```bash
-lake build
-lake test
+./build.sh
 ```
 **Note:** Run from the `PiLang/` root directory. `lakefile.toml` is at `PiLang/lakefile.toml`, not `PiLang/lean/lakefile.toml`.

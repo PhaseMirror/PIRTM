@@ -10,9 +10,9 @@
 
 ```lean
 def Reconstructible (lookup : ADRId → Option ADR) (a : ADR) : Prop :=
-  ∃ fuel, fuel > 0 ∧
-  let chain := followSupersession lookup a fuel
-  chain = [] ∨ (chain ≠ [] ∧ lookup (chain.getLast (by simp [hFuelPos])) = none)
+  ∃ fuel,
+    let chain := followSupersession lookup a (fuel.succ)
+    chain = [] ∨ (chain ≠ [] ∧ lookup (chain.getLast (by simp)) = none)
 ```
 
 The term `hFuelPos` is not in scope. `fuel > 0` is bound in the existential, but `hFuelPos` is never introduced as a named hypothesis. This makes `Reconstructible` ill-formed.

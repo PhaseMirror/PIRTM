@@ -1,8 +1,9 @@
 # ADR-023: Enforce Grammar Quarantine via Separate Kernel Lexer
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Deciders**: Phase Mirror Governance, Compiler Engineering
 - **Date**: 2026-09-01
+
 
 ## Context
 
