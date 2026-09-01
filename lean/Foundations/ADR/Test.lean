@@ -13,11 +13,12 @@ import Foundations.ADR.Constitution
 import Foundations.ADR.License
 import Foundations.ADR.Reconciliation
 import Foundations.ADR.UIIntegration
+import Foundations.ADR.GoldilocksSoundness
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-045.
+Lake test suite for ADR invariants, ADR-034 through ADR-046.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -32,6 +33,7 @@ open PIRTM.Constitution
 open PIRTM.License
 open PIRTM.Reconciliation
 open PIRTM.UIIntegration
+open PIRTM.GoldilocksSoundness
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -155,3 +157,10 @@ def test_ui_integration_receipt : IO Unit := do
     IO.println "ADR-045: UI contractivity gate & MLIR receipt generation test passed"
   else
     throw $ IO.Error.userError "ADR-045: UI compile evaluation failed"
+
+def test_goldilocks_preservation : IO Unit := do
+  let elem := fromScaledRatio 85
+  if elem.val < 100 then
+    IO.println "ADR-046: Goldilocks prime field contractivity preservation test passed"
+  else
+    throw $ IO.Error.userError "ADR-046: Goldilocks contractivity preservation test failed"

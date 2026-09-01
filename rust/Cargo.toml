@@ -22,6 +22,7 @@ members = [
     "pirtm-orchestration",
     "pirtm-tools",
     "pirtm-web-sdk",
+    "pirtm-goldilocks",
 ]
 resolver = "2"
 

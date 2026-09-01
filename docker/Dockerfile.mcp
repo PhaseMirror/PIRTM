@@ -1,0 +1,15 @@
+FROM rust:1.80-slim as builder
+
+WORKDIR /usr/src/pirtm
+COPY . .
+
+RUN cargo build --release --package pirtm-mcp
+
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=builder /usr/src/pirtm/target/release/pirtm-mcp /app/pirtm-mcp
+
+EXPOSE 8080
+ENV RUST_LOG=info
+
+CMD ["/app/pirtm-mcp"]

@@ -251,3 +251,19 @@ def uiUxIntegration : ADR := {
   supersedes := none,
   links := [{uri := "../docs/adr/ADR-045-UI-UX-Integration-PIRTM.md", label := "ADR-045 Document"}]
 }
+
+/-- ADR-046: Goldilocks Prime Field Integration -/
+def goldilocksFieldIntegration : ADR := {
+  id := 46,
+  title := "The Goldilocks Prime Field Backend for ZK Circuit Acceleration",
+  status := ADRStatus.Accepted,
+  context := "High-performance zero-knowledge circuit generation requires accelerated modulo arithmetic over p = 2^64 - 2^32 + 1.",
+  decision := "Integrate Goldilocks prime field arithmetic (pirtm-goldilocks) for fast NTT and ZK receipt generation.",
+  consequences := [
+    "Accelerate Poseidon2 and PLONK proof generation.",
+    "Preserve exact rational bounds in proof verification.",
+    "Prove contractivity preservation in Lean 4 GoldilocksSoundness."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-046-The Goldilocks prime field.md", label := "ADR-046 Document"}]
+}
