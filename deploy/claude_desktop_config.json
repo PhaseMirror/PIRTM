@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pirtm-governance": {
+      "command": "/media/citizen/b361d448-7c51-413a-aa23-9515cb626930/home/citizen/Multiplicity/PiLang/rust/target/release/pirtm",
+      "args": ["mcp", "start", "--transport", "stdio"],
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "PIRTM_LOG": "info"
+      }
+    }
+  }
+}
