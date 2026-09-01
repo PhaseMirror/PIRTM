@@ -1,0 +1,63 @@
+//! Network primitives (TCP)
+use std::string::String;
+use std::option::Option;
+
+extern "C" fn tcp_listen(port: i64) -> *u8;
+extern "C" fn tcp_accept(listener: *u8) -> *u8;
+extern "C" fn tcp_read(conn: *u8) -> *u8;
+extern "C" fn tcp_write(conn: *u8, data: *u8) -> i64;
+extern "C" fn tcp_close(conn: *u8);
+extern "C" fn tcp_listener_close(listener: *u8);
+extern "C" fn get_spectral_rho() -> f64;
+extern "C" fn log_audit_request(endpoint: *u8, status: i64);
+
+struct Listener {
+    ptr: *u8,
+}
+
+struct Connection {
+    ptr: *u8,
+}
+
+impl Listener {
+    fn listen(port: i64) -> Option<Listener> {
+        let ptr = tcp_listen(port);
+        if ptr == 0 {
+            Option::None
+        } else {
+            Option::Some(Listener { ptr: ptr })
+        }
+    }
+
+    fn accept(&self) -> Option<Connection> {
+        let ptr = tcp_accept(self.ptr);
+        if ptr == 0 {
+            Option::None
+        } else {
+            Option::Some(Connection { ptr: ptr })
+        }
+    }
+
+    fn close(&self) {
+        tcp_listener_close(self.ptr);
+    }
+}
+
+impl Connection {
+    fn read(&self) -> Option<String> {
+        let s = tcp_read(self.ptr);
+        if s == 0 {
+            Option::None
+        } else {
+            Option::Some(String::from_str(s))
+        }
+    }
+
+    fn write(&self, data: *u8) -> i64 {
+        tcp_write(self.ptr, data);
+    }
+
+    fn close(&self) {
+        tcp_close(self.ptr);
+    }
+}

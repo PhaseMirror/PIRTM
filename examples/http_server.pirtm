@@ -1,0 +1,56 @@
+use std::net::Listener;
+use std::net::Connection;
+use std::net::get_spectral_rho;
+use std::net::log_audit_request;
+use std::string::String;
+use std::io::print;
+
+fn respond(conn: &Connection, status_code: i64, body: String) {
+    let mut resp = String::from_str("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n");
+    resp = resp.concat(body);
+    conn.write(resp.to_str());
+}
+
+fn handle_request(conn: &Connection, request: String) {
+    let mut response_body = String::from_str("{\"status\":\"UP\",\"governance\":\"LOCKED\",\"spectral_rho\":0.0}");
+    respond(conn, 200, response_body);
+    log_audit_request("/status", 200);
+}
+
+fn main() -> i64 {
+    let listener_opt = Listener::listen(8080);
+    match listener_opt {
+        Option::Some(listener) => {
+            print("PIRTM Governed HTTP/1.1 Micro-Server listening on port 8080");
+            let mut running = true;
+            let mut request_count = 0;
+            while running && request_count < 100 {
+                let conn_opt = listener.accept();
+                match conn_opt {
+                    Option::Some(conn) => {
+                        let req_opt = conn.read();
+                        match req_opt {
+                            Option::Some(req) => {
+                                handle_request(&conn, req);
+                                conn.close();
+                                request_count = request_count + 1;
+                            }
+                            Option::None => {
+                                conn.close();
+                            }
+                        }
+                    }
+                    Option::None => {
+                        running = false;
+                    }
+                }
+            }
+            listener.close();
+            return 0;
+        }
+        Option::None => {
+            print("Failed to bind listener on port 8080");
+            return 1;
+        }
+    }
+}

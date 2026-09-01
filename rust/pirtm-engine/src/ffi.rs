@@ -205,3 +205,96 @@ pub extern "C" fn is_ge(a: i64, b: i64) -> bool { a >= b }
 pub extern "C" fn is_gt(a: i64, b: i64) -> bool { a > b }
 #[no_mangle]
 pub extern "C" fn is_lt(a: i64, b: i64) -> bool { a < b }
+
+// ---------- TCP Network FFI ----------
+
+use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write};
+use std::ptr;
+
+#[no_mangle]
+pub extern "C" fn tcp_listen(port: i64) -> *mut TcpListener {
+    let addr = format!("127.0.0.1:{}", port);
+    match TcpListener::bind(&addr) {
+        Ok(listener) => Box::into_raw(Box::new(listener)),
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tcp_accept(listener: *mut TcpListener) -> *mut TcpStream {
+    if listener.is_null() {
+        return ptr::null_mut();
+    }
+    let listener = unsafe { &mut *listener };
+    match listener.accept() {
+        Ok((stream, _)) => Box::into_raw(Box::new(stream)),
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tcp_read(conn: *mut TcpStream) -> *mut std::string::String {
+    if conn.is_null() {
+        return ptr::null_mut();
+    }
+    let conn = unsafe { &mut *conn };
+    let mut buffer = [0u8; 4096];
+    match conn.read(&mut buffer) {
+        Ok(n) => {
+            let s = String::from_utf8_lossy(&buffer[..n]).into_owned();
+            Box::into_raw(Box::new(s))
+        }
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tcp_write(conn: *mut TcpStream, data: *const c_char) -> i64 {
+    if conn.is_null() || data.is_null() {
+        return -1;
+    }
+    let conn = unsafe { &mut *conn };
+    let cstr = unsafe { CStr::from_ptr(data) };
+    let bytes = cstr.to_bytes();
+    match conn.write_all(bytes) {
+        Ok(_) => {
+            let _ = conn.flush();
+            bytes.len() as i64
+        }
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tcp_close(conn: *mut TcpStream) {
+    if !conn.is_null() {
+        unsafe {
+            drop(Box::from_raw(conn));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tcp_listener_close(listener: *mut TcpListener) {
+    if !listener.is_null() {
+        unsafe {
+            drop(Box::from_raw(listener));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_spectral_rho() -> f64 {
+    0.0
+}
+
+#[no_mangle]
+pub extern "C" fn log_audit_request(endpoint: *const c_char, status: i64) {
+    let ep = if endpoint.is_null() {
+        "unknown"
+    } else {
+        unsafe { CStr::from_ptr(endpoint).to_str().unwrap_or("unknown") }
+    };
+    println!("AUDIT REQUEST LOG: endpoint='{}', status={}", ep, status);
+}
