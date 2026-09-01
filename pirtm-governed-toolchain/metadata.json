@@ -1,0 +1,6 @@
+{
+  "name": "PIRTM - Governed Computation Toolchain",
+  "description": "Phase-Indexed Recursive Tensor Mathematics and Multiplicity Operator Calculus (MOC) toolchain with Lean formal verification, MLIR backend, and spectral small-gain runtime enforcement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
