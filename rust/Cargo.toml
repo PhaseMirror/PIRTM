@@ -9,7 +9,8 @@ members = [
     "telemetry-recorder",
     "pirtm-monitor",
     "pirtm-engine",
-    "pirtm-mcp"
+    "pirtm-mcp",
+    "pirtm-telemetry"
 ]
 resolver = "2"
 

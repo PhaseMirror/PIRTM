@@ -1,0 +1,34 @@
+# Multi-stage ARM64 Cross-Compilation Container for Raspberry Pi 4/5 Hubs
+FROM rust:1.81-bookworm AS cross-builder
+
+# Install ARM64 cross-compiler toolchain for C-bindings (Tree-sitter, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add ARM64 Rust target
+RUN rustup target add aarch64-unknown-linux-gnu
+
+# Environment for C-bindings and Linker
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+ENV CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+ENV PKG_CONFIG_ALLOW_CROSS=1
+
+WORKDIR /usr/src/pilang
+COPY rust/ .
+
+# Cross-compile release binary for ARM64 Raspberry Pi
+RUN cargo build --release --target aarch64-unknown-linux-gnu -p pirtm-compiler
+
+# Minimal deployment image for physical Raspberry Pi
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=cross-builder /usr/src/pilang/target/aarch64-unknown-linux-gnu/release/pirtm /usr/local/bin/pirtm
+
+EXPOSE 8090
+ENTRYPOINT ["/usr/local/bin/pirtm"]
+CMD ["mcp", "start", "--transport", "tcp", "--port", "8090"]
