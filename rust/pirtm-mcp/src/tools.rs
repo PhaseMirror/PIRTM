@@ -86,7 +86,7 @@ pub fn list_tools() -> Value {
 
 pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
     match name {
-        "pirtm_compile" => {
+        "pirtm_compile" | "compile" => {
             let source = args.get("source").and_then(|v| v.as_str()).ok_or("Missing 'source' argument")?;
             match pirtm_parser::parse(source) {
                 Ok(program) => {
@@ -133,7 +133,7 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 })),
             }
         }
-        "pirtm_validate" => {
+        "pirtm_validate" | "validate" => {
             let source = args.get("source").and_then(|v| v.as_str()).ok_or("Missing 'source' argument")?;
             match pirtm_parser::parse(source) {
                 Ok(program) => Ok(json!({
@@ -157,7 +157,7 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 })),
             }
         }
-        "pirtm_verify_ensemble" => {
+        "pirtm_verify_ensemble" | "verify_ensemble" => {
             let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("unnamed_ensemble");
             let matrix: Vec<Vec<f64>> = serde_json::from_value(args.get("adjacency_matrix").cloned().unwrap_or(json!([])))
                 .map_err(|e| format!("Invalid adjacency_matrix: {}", e))?;
@@ -198,10 +198,22 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 })),
             }
         }
-        "pirtm_run" => {
-            let mlir = args.get("mlir").and_then(|v| v.as_str()).ok_or("Missing 'mlir' argument")?;
-            let input_args: Vec<String> = serde_json::from_value(args.get("input_args").cloned().unwrap_or(json!([])))
+        "pirtm_run" | "run" | "run_artifact" => {
+            let mlir = if let Some(path_str) = args.get("artifact_path").and_then(|v| v.as_str()) {
+                std::fs::read_to_string(path_str).map_err(|e| format!("Failed to read artifact_path '{}': {}", path_str, e))?
+            } else if let Some(code) = args.get("mlir").and_then(|v| v.as_str()) {
+                code.to_string()
+            } else {
+                return Err("Missing 'mlir' or 'artifact_path' argument".to_string());
+            };
+
+            let mut input_args: Vec<String> = serde_json::from_value(args.get("input_args").cloned().unwrap_or(json!([])))
                 .unwrap_or_default();
+            if input_args.is_empty() {
+                if let Some(inp) = args.get("input").and_then(|v| v.as_str()) {
+                    input_args.push(inp.to_string());
+                }
+            }
 
             let mut temp_file = tempfile::Builder::new()
                 .suffix(".mlir")
@@ -255,8 +267,12 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 })),
             }
         }
-        "pirtm_get_receipt" => {
-            let hash = args.get("receipt_hash").and_then(|v| v.as_str()).ok_or("Missing 'receipt_hash' argument")?;
+        "pirtm_get_receipt" | "get_receipt" => {
+            let hash = args.get("receipt_hash")
+                .or_else(|| args.get("program_hash"))
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'receipt_hash' or 'program_hash' argument")?;
+
             Ok(json!({
                 "content": [{
                     "type": "text",

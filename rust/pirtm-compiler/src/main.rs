@@ -76,6 +76,8 @@ enum Commands {
     },
     /// Start the Model Context Protocol (MCP) server
     Mcp {
+        /// Optional action (e.g. 'start')
+        action: Option<String>,
         #[arg(short, long, default_value = "stdio", help = "Transport: stdio or tcp")]
         transport: String,
         #[arg(short, long, default_value_t = 8090, help = "Port for TCP transport")]
@@ -264,7 +266,7 @@ contractivity_receipt = "pending"
 
             println!("✅ Successfully created new ensemble '{}'", name);
         }
-        Commands::Mcp { transport, port } => {
+        Commands::Mcp { action: _, transport, port } => {
             let server = pirtm_mcp::McpServer::new();
             match transport.as_str() {
                 "stdio" => {
