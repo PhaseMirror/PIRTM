@@ -1,5 +1,5 @@
 use pirtm_engine::{
-    spectral::{validate_and_certify, Ensemble},
+    spectral::{lambda_pairs_from_f64, matrix_pairs_from_f64, validate_and_certify, Ensemble},
     Runtime, RuntimeConfig,
 };
 use pirtm_mlir::pirtm::transpiler::visitor::MlirEmitterVisitor;
@@ -47,11 +47,11 @@ pub fn list_tools() -> Value {
                         "lambdas": {
                             "type": "array",
                             "items": { "type": "number" },
-                            "description": "Contraction factors vector lambda, reconstructed into Q"
+                            "description": "Contraction factors vector lambda, reconstructed into Q at the MCP edge"
                         },
                         "theorem_name": {
                             "type": "string",
-                            "description": "Lean-style identifier anchoring λ. Presence gated; content is ADR-053."
+                            "description": "Lean-style identifier anchoring lambda. Presence gated; content is ADR-053."
                         }
                     },
                     "required": ["name", "adjacency_matrix", "lambdas", "theorem_name"]
@@ -101,7 +101,6 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                             hasher.update(source.as_bytes());
                             hasher.update(mlir_code.as_bytes());
                             let receipt_hash = hex::encode(hasher.finalize());
-
                             Ok(json!({
                                 "content": [{
                                     "type": "text",
@@ -167,12 +166,32 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 .map_err(|e| format!("Invalid adjacency_matrix: {}", e))?;
             let lambdas: Vec<f64> = serde_json::from_value(args.get("lambdas").cloned().unwrap_or(json!([])))
                 .map_err(|e| format!("Invalid lambdas: {}", e))?;
-            let theorem_name = args
-                .get("theorem_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let theorem_name = args.get("theorem_name").and_then(|v| v.as_str()).unwrap_or("");
 
-            let ensemble = Ensemble::new(name, matrix, lambdas).with_theorem_name(theorem_name);
+            let adj = matrix_pairs_from_f64(&matrix).map_err(|e| e.to_string())?;
+            let lams = lambda_pairs_from_f64(&lambdas).map_err(|e| e.to_string())?;
+            let ensemble = match Ensemble::from_rationals(name, adj, lams, theorem_name) {
+                Ok(e) => e,
+                Err(err) => {
+                    let status = if matches!(err, pirtm_engine::EnsembleError::MissingTheoremAnchor) {
+                        "MISSING_THEOREM_ANCHOR"
+                    } else {
+                        "REJECTED"
+                    };
+                    return Ok(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": serde_json::to_string_pretty(&json!({
+                                "status": status,
+                                "error": err.to_string(),
+                                "action": "REJECT"
+                            })).unwrap()
+                        }],
+                        "isError": true
+                    }));
+                }
+            };
+
             match validate_and_certify(&ensemble, 0.0) {
                 Ok(receipt) => Ok(json!({
                     "content": [{
@@ -231,7 +250,6 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
             } else {
                 return Err("Missing 'mlir' or 'artifact_path' argument".to_string());
             };
-
             let mut input_args: Vec<String> = serde_json::from_value(args.get("input_args").cloned().unwrap_or(json!([])))
                 .unwrap_or_default();
             if input_args.is_empty() {
@@ -239,15 +257,12 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                     input_args.push(inp.to_string());
                 }
             }
-
             let mut temp_file = tempfile::Builder::new()
                 .suffix(".mlir")
                 .tempfile()
                 .map_err(|e| format!("Tempfile creation failed: {}", e))?;
-
             temp_file.write_all(mlir.as_bytes()).map_err(|e| format!("Write failed: {}", e))?;
             let path = temp_file.path();
-
             let config = RuntimeConfig {
                 dry_run: false,
                 jid_enabled: false,
@@ -255,7 +270,6 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 enforce_bounds: true,
                 input_args,
             };
-
             let mut runtime = Runtime::new(config);
             match runtime.load(path) {
                 Ok(_) => match runtime.run() {
@@ -298,7 +312,6 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 .or_else(|| args.get("program_hash"))
                 .and_then(|v| v.as_str())
                 .ok_or("Missing 'receipt_hash' or 'program_hash' argument")?;
-
             Ok(json!({
                 "content": [{
                     "type": "text",
