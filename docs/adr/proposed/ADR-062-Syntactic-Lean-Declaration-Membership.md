@@ -20,6 +20,10 @@ Certified contractivity receipts contain a `theorem_name` anchor string (e.g. `F
    - External CI scripts, checked-in hand-edited JSON files, or secondary claim tables are strictly forbidden. The Lean 4 compiler frontend is the sole authority for declaration existence.
    - If `lake_export_decls.json` is missing or empty, `pirtmd` fails closed with `MissingLeanDecl`.
 
+3. **Declaration Kind Filtering (Axiom Exclusion Rule)**:
+   - `export_decls` emits proved non-axiom declarations (`theorem`, `lemma`, `def`, `structure`).
+   - Raw `axiom` declarations and unproven axiom stubs are **strictly excluded** from `lake_export_decls.json`. A receipt anchor referencing an unproven `axiom` fails closed with `MissingLeanDecl`.
+
 ## Consequences
 
 - Guarantees every certified receipt anchor corresponds to a real Lean 4 declaration.
