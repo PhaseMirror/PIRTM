@@ -53,3 +53,8 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
      1. **Packaging Envelope Parser (Pest)**: Parses module metadata header (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`) into formal envelope AST nodes.
      2. **Application Logic Parser (Pratt `pirtm-parser`)**: Parses application logic (`fn`, `struct`, `loop`, `match`) and lowers to MLIR.
    - `pirtmd` does NOT force a single concatenated Pest grammar containing application `fn` rules. The envelope spec and application parser remain decoupled layers.
+
+7. **Envelope Boundary Delimiter & Theorem Anchor Grammar**:
+   - The Pest envelope parser processes statements (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`) until encountering the first non-packaging statement (e.g., `fn`, `struct`) or an explicit `---` header delimiter.
+   - `theorem_decl` accepts formal string literals or qualified Lean theorem path identifiers (`theorem_anchor`).
+   - Both `let matrix = ...;` and `matrix = ...;` syntax forms are recognized by `pirtm.pest` to ensure seamless transition between Phase 1 and Phase 2.
