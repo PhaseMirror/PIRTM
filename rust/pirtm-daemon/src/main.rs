@@ -115,24 +115,36 @@ async fn handle_connection(
     Ok(())
 }
 
-/// Lexically locates standalone `---` header delimiter line outside string literals/comments (ADR-060)
-pub fn find_explicit_delimiter_line(source: &str) -> Option<usize> {
+/// Lexically locates standalone `---` header delimiter line outside string literals and block comments (ADR-060)
+pub fn find_explicit_delimiter_line(source: &str) -> Option<(usize, usize)> {
     let mut in_block_comment = false;
+    let mut in_string = false;
     let mut byte_offset = 0;
 
     for line in source.lines() {
+        let line_len = line.len();
         let trimmed = line.trim();
-        if trimmed.starts_with("/*") && !trimmed.contains("*/") {
-            in_block_comment = true;
-        } else if trimmed.contains("*/") {
-            in_block_comment = false;
+
+        if !in_block_comment {
+            let quote_count = line.bytes().filter(|&b| b == b'"').count();
+            if quote_count % 2 != 0 {
+                in_string = !in_string;
+            }
         }
 
-        if !in_block_comment && trimmed == "---" {
-            return Some(byte_offset);
+        if !in_string {
+            if trimmed.starts_with("/*") && !trimmed.contains("*/") {
+                in_block_comment = true;
+            } else if trimmed.contains("*/") {
+                in_block_comment = false;
+            }
         }
 
-        byte_offset += line.len() + 1; // include line length and newline byte
+        if !in_block_comment && !in_string && trimmed == "---" {
+            return Some((byte_offset, byte_offset + line_len));
+        }
+
+        byte_offset += line_len + 1; // include line length and newline byte
     }
 
     None
@@ -140,9 +152,10 @@ pub fn find_explicit_delimiter_line(source: &str) -> Option<usize> {
 
 /// Splits PIRTM contract source into (envelope_header, application_body) strictly at standalone `---` delimiter line (ADR-057)
 pub fn split_header_body(source: &str) -> (&str, &str) {
-    if let Some(offset) = find_explicit_delimiter_line(source) {
-        let (header, rest) = source.split_at(offset);
-        let body = rest.trim_start_matches(|c| c == '-' || c == '\r' || c == '\n' || c == ' ');
+    if let Some((start_offset, end_offset)) = find_explicit_delimiter_line(source) {
+        let header = &source[..start_offset];
+        let rest = &source[end_offset..];
+        let body = rest.trim_start_matches(|c| c == '\r' || c == '\n');
         (header, body)
     } else {
         (source, "")
@@ -596,6 +609,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_daemon_process_request_compile_fail_closed_missing_header_delimiter() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        // Missing mandatory '---' header delimiter when fn main() application body follows
+        let missing_delimiter_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        fn main() -> i64 {
+            return 42;
+        }
+        "#;
+
+        let req = DaemonRequest {
+            id: 105,
+            method: "compile".to_string(),
+            params: json!({
+                "source": missing_delimiter_source,
+                "name": "test_contract",
+                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 105);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("InvalidHeaderStatement"));
+    }
+
+    #[tokio::test]
     async fn test_daemon_process_request_compile_valid_ast_matrix() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
@@ -618,7 +669,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 105,
+            id: 106,
             method: "compile".to_string(),
             params: json!({
                 "source": valid_ast_source,
@@ -628,7 +679,7 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 105);
+        assert_eq!(resp.id, 106);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
@@ -658,7 +709,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 106,
+            id: 107,
             method: "compile".to_string(),
             params: json!({
                 "source": header_delimited_source,
@@ -668,7 +719,7 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 106);
+        assert_eq!(resp.id, 107);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
@@ -688,13 +739,13 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 107,
+            id: 108,
             method: "get_status".to_string(),
             params: json!({}),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 107);
+        assert_eq!(resp.id, 108);
         let result = resp.result.unwrap();
         assert_eq!(result["daemon_status"], "ACTIVE");
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
