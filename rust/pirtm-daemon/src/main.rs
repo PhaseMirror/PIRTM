@@ -126,9 +126,16 @@ pub fn find_explicit_delimiter_line(source: &str) -> Option<(usize, usize)> {
         let trimmed = line.trim();
 
         if !in_block_comment {
-            let quote_count = line.bytes().filter(|&b| b == b'"').count();
-            if quote_count % 2 != 0 {
-                in_string = !in_string;
+            let mut escape = false;
+            for b in line.bytes() {
+                if b == b'\\' && !escape {
+                    escape = true;
+                } else {
+                    if b == b'"' && !escape {
+                        in_string = !in_string;
+                    }
+                    escape = false;
+                }
             }
         }
 
@@ -198,7 +205,7 @@ fn parse_ast_row(expr: &Expr) -> Result<Vec<(u64, u64)>, String> {
 }
 
 /// Walk AST statements in envelope header (Phase 1) enforcing strict header validation (ADR-058, ADR-061)
-fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u64, u64)>), String> {
+fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u64, u64)>, Option<String>), String> {
     let (header_text, body_text) = split_header_body(source);
 
     // Reject multiple '---' delimiters in body text (ADR-061)
@@ -211,6 +218,7 @@ fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u
 
     let mut matrix: Option<Vec<Vec<(u64, u64)>>> = None;
     let mut lambdas: Option<Vec<(u64, u64)>> = None;
+    let mut theorem: Option<String> = None;
 
     for stmt in &program.stmts {
         match stmt {
@@ -229,7 +237,11 @@ fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u
                 } else if name == "lambdas" {
                     lambdas = Some(parse_ast_row(expr)?);
                 } else if name == "theorem" {
-                    // Allowed header theorem declaration
+                    match expr {
+                        Expr::StringLit(s) => theorem = Some(s.clone()),
+                        Expr::Ident(s) => theorem = Some(s.clone()),
+                        _ => return Err("InvalidTheoremDeclaration: 'theorem' must be a string literal or dotted identifier path".to_string()),
+                    }
                 } else {
                     return Err(format!("InvalidHeaderStatement: unexpected let binding 'let {}' in envelope header per ADR-058", name));
                 }
@@ -252,7 +264,7 @@ fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u
         return Err("MissingSpectralParams: empty matrix or lambdas declared in AST".to_string());
     }
 
-    Ok((m, l))
+    Ok((m, l, theorem))
 }
 
 async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> DaemonResponse {
@@ -276,20 +288,8 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 .and_then(|s| s.as_str())
                 .unwrap_or("module");
 
-            // Require explicit theorem_name per ADR-055 (no production default to author_declared_lambda or hardcoded theorem)
-            let theorem_name = match req.params.get("theorem_name").and_then(|s| s.as_str()) {
-                Some(s) if !s.trim().is_empty() && s != "author_declared_lambda" => s,
-                _ => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some("MissingTheoremAnchor: 'theorem_name' parameter must be explicitly specified per ADR-055".to_string()),
-                    };
-                }
-            };
-
-            // Phase 1 Governance Gate: Extract (matrix, lambdas) directly from envelope header; fail closed if absent, malformed, or multiple delimiters
-            let (matrix, lambdas) = match extract_spectral_params(source) {
+            // Phase 1 Governance Gate: Extract (matrix, lambdas, theorem) directly from envelope header; fail closed if absent, malformed, or multiple delimiters
+            let (matrix, lambdas, header_theorem) = match extract_spectral_params(source) {
                 Ok(params) => params,
                 Err(err) => {
                     return DaemonResponse {
@@ -300,12 +300,37 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
+            let rpc_theorem = req.params.get("theorem_name").and_then(|s| s.as_str());
+
+            // Enforce theorem anchor consistency per ADR-055
+            let final_theorem = match (header_theorem, rpc_theorem) {
+                (Some(ht), Some(rt)) if !rt.trim().is_empty() && rt != "author_declared_lambda" => {
+                    if ht != rt {
+                        return DaemonResponse {
+                            id: req.id,
+                            result: None,
+                            error: Some(format!("TheoremAnchorMismatch: header declaration theorem '{}' does not match RPC parameter theorem_name '{}' per ADR-055", ht, rt)),
+                        };
+                    }
+                    ht
+                }
+                (Some(ht), _) => ht,
+                (None, Some(rt)) if !rt.trim().is_empty() && rt != "author_declared_lambda" => rt.to_string(),
+                _ => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some("MissingTheoremAnchor: 'theorem_name' must be explicitly specified in header or RPC parameter per ADR-055".to_string()),
+                    };
+                }
+            };
+
             // Evaluate 1-norm contractivity over exact rational pairs extracted from AST
             let ensemble = match Ensemble::from_rationals(
                 name,
                 matrix,
                 lambdas,
-                theorem_name,
+                &final_theorem,
             ) {
                 Ok(e) => e,
                 Err(err) => {
@@ -328,30 +353,33 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Phase 2 Code Generation: Parse application body after delimiter (or full source if header-only) and emit MLIR (ADR-059)
+            // Phase 2 Code Generation: Parse application body after delimiter (ADR-059)
             let (_, body_text) = split_header_body(source);
-            let compile_target = if body_text.trim().is_empty() { source } else { body_text };
 
-            let compiler = PhaseMirrorCompiler::new();
-            let mlir_module = match compiler.compile(compile_target) {
-                Ok(m) => m,
-                Err(err) => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some(format!("CompileError: {}", err)),
-                    };
-                }
-            };
+            let mlir_text = if body_text.trim().is_empty() {
+                "// Envelope-only header file certified; zero MLIR code emitted".to_string()
+            } else {
+                let compiler = PhaseMirrorCompiler::new();
+                let mlir_module = match compiler.compile(body_text) {
+                    Ok(m) => m,
+                    Err(err) => {
+                        return DaemonResponse {
+                            id: req.id,
+                            result: None,
+                            error: Some(format!("CompileError: {}", err)),
+                        };
+                    }
+                };
 
-            let mlir_text = match compiler.to_mlir(&mlir_module) {
-                Ok(t) => t,
-                Err(err) => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some(format!("MlirEmissionError: {}", err)),
-                    };
+                match compiler.to_mlir(&mlir_module) {
+                    Ok(t) => t,
+                    Err(err) => {
+                        return DaemonResponse {
+                            id: req.id,
+                            result: None,
+                            error: Some(format!("MlirEmissionError: {}", err)),
+                        };
+                    }
                 }
             };
 
@@ -374,19 +402,8 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
 
             let source = req.params.get("source").and_then(|s| s.as_str()).unwrap_or("");
 
-            let theorem_name = match req.params.get("theorem_name").and_then(|s| s.as_str()) {
-                Some(s) if !s.trim().is_empty() && s != "author_declared_lambda" => s,
-                _ => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some("MissingTheoremAnchor: 'theorem_name' is required and author_declared_lambda fallback is forbidden per ADR-055".to_string()),
-                    };
-                }
-            };
-
-            // Extract (matrix, lambdas) directly from parsed AST if provided, or fail closed
-            let (matrix, lambdas) = match extract_spectral_params(source) {
+            // Extract (matrix, lambdas, theorem) directly from parsed AST if provided, or fail closed
+            let (matrix, lambdas, header_theorem) = match extract_spectral_params(source) {
                 Ok(params) => params,
                 Err(err) => {
                     return DaemonResponse {
@@ -397,11 +414,35 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
+            let rpc_theorem = req.params.get("theorem_name").and_then(|s| s.as_str());
+
+            let final_theorem = match (header_theorem, rpc_theorem) {
+                (Some(ht), Some(rt)) if !rt.trim().is_empty() && rt != "author_declared_lambda" => {
+                    if ht != rt {
+                        return DaemonResponse {
+                            id: req.id,
+                            result: None,
+                            error: Some(format!("TheoremAnchorMismatch: header declaration theorem '{}' does not match RPC parameter theorem_name '{}' per ADR-055", ht, rt)),
+                        };
+                    }
+                    ht
+                }
+                (Some(ht), _) => ht,
+                (None, Some(rt)) if !rt.trim().is_empty() && rt != "author_declared_lambda" => rt.to_string(),
+                _ => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some("MissingTheoremAnchor: 'theorem_name' is required and author_declared_lambda fallback is forbidden per ADR-055".to_string()),
+                    };
+                }
+            };
+
             let ensemble = match Ensemble::from_rationals(
                 name,
                 matrix,
                 lambdas,
-                theorem_name,
+                &final_theorem,
             ) {
                 Ok(e) => e,
                 Err(err) => {
@@ -647,6 +688,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_daemon_process_request_compile_fail_closed_theorem_mismatch() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        // Header theorem disagrees with RPC theorem_name
+        let mismatch_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        let theorem = "Header.Theorem.Path";
+        ---
+        fn main() -> i64 { return 42; }
+        "#;
+
+        let req = DaemonRequest {
+            id: 106,
+            method: "compile".to_string(),
+            params: json!({
+                "source": mismatch_source,
+                "name": "test_contract",
+                "theorem_name": "RPC.Different.Theorem.Path"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 106);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("TheoremAnchorMismatch"));
+    }
+
+    #[tokio::test]
     async fn test_daemon_process_request_compile_valid_ast_matrix() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
@@ -669,7 +748,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 106,
+            id: 107,
             method: "compile".to_string(),
             params: json!({
                 "source": valid_ast_source,
@@ -679,7 +758,7 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 106);
+        assert_eq!(resp.id, 107);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
@@ -709,7 +788,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 107,
+            id: 108,
             method: "compile".to_string(),
             params: json!({
                 "source": header_delimited_source,
@@ -719,7 +798,7 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 107);
+        assert_eq!(resp.id, 108);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
@@ -739,13 +818,13 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 108,
+            id: 109,
             method: "get_status".to_string(),
             params: json!({}),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 108);
+        assert_eq!(resp.id, 109);
         let result = resp.result.unwrap();
         assert_eq!(result["daemon_status"], "ACTIVE");
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
