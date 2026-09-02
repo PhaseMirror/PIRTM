@@ -34,7 +34,7 @@ pub fn list_tools() -> Value {
             },
             {
                 "name": "pirtm_verify_ensemble",
-                "description": "Certify operator coupling under Small-Gain: rho(|A| diag(lambda)) < 1.0 with a required theorem_name anchor.",
+                "description": "Certify operator coupling under exact rational 1-norm: ||G||_1 < 1 with a required theorem_name anchor.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -47,7 +47,7 @@ pub fn list_tools() -> Value {
                         "lambdas": {
                             "type": "array",
                             "items": { "type": "number" },
-                            "description": "Contraction factors vector lambda in (0, 1)"
+                            "description": "Contraction factors vector lambda, reconstructed into Q"
                         },
                         "theorem_name": {
                             "type": "string",
@@ -180,8 +180,8 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                         "text": serde_json::to_string_pretty(&json!({
                             "status": "ACCEPT",
                             "ensemble_name": receipt.ensemble_name,
-                            "spectral_radius": receipt.spectral_radius,
-                            "is_stable": receipt.is_stable,
+                            "exact_rational_norm_1": receipt.exact_rational_norm_1,
+                            "is_norm_contractive": receipt.is_norm_contractive,
                             "seal_hash": receipt.hash,
                             "theorem_name": receipt.theorem_name,
                             "action": "ACCEPT"
@@ -199,13 +199,24 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                     }],
                     "isError": true
                 })),
+                Err(err) if err.contains("NormContractivityViolation") => Ok(json!({
+                    "content": [{
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&json!({
+                            "status": "REJECTED",
+                            "error": err,
+                            "action": "NormContractivityViolation"
+                        })).unwrap()
+                    }],
+                    "isError": true
+                })),
                 Err(err) => Ok(json!({
                     "content": [{
                         "type": "text",
                         "text": serde_json::to_string_pretty(&json!({
                             "status": "REJECTED",
                             "error": err,
-                            "action": "SIG_GOV_KILL"
+                            "action": "REJECT"
                         })).unwrap()
                     }],
                     "isError": true

@@ -24,14 +24,12 @@ fn test_end_to_end_json_parser_execution() {
 
     let mut runtime = Runtime::new(config);
 
-    // 1. Validate Small-Gain stability at link-time
-    let cert = runtime.validate_ensemble(&ensemble).expect("Ensemble should pass small-gain gate");
-    assert!(cert.is_stable);
-    assert!(cert.spectral_radius < 1.0);
+    let cert = runtime.validate_ensemble(&ensemble).expect("Ensemble should pass 1-norm gate");
+    assert!(cert.is_norm_contractive);
+    assert!(cert.exact_rational_norm_1.0 < cert.exact_rational_norm_1.1);
     assert!(!cert.hash.is_empty());
     assert_eq!(cert.theorem_name, "author_declared_lambda");
 
-    // 2. Load and run compiled MLIR module
     let mlir_path = Path::new("../../examples/json_parser.mlir");
     if mlir_path.exists() {
         runtime.load(mlir_path).expect("Failed to load json_parser.mlir");

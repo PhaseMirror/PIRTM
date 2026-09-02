@@ -14,11 +14,15 @@ pub enum LinkerError {
     MissingTheoremAnchor {
         ensemble: String,
     },
+    NormContractivityViolation {
+        ensemble: String,
+        norm_1: (u64, u64),
+    },
 }
 
 /// The SpectralGovernor oversees the linking of multiple ensembles.
-/// It constructs the topological interconnection matrix A and gains λ,
-/// and certifies ρ(|A|·diag(λ)) < 1.0 via validate_and_certify.
+/// It constructs the interconnection matrix A and gains λ,
+/// and certifies ||G||_1 < 1 in Q via validate_and_certify.
 pub struct SpectralGovernor {
     registry: HashMap<String, EnsembleManifest>,
 }
@@ -30,21 +34,17 @@ impl SpectralGovernor {
         }
     }
 
-    /// Register an available ensemble manifest into the linker's registry.
     pub fn register(&mut self, manifest: EnsembleManifest) {
         self.registry
             .insert(manifest.ensemble.name.clone(), manifest);
     }
 
-    /// Link a root ensemble, verifying dependencies and issuing a certified receipt.
-    /// Missing theorem_name is a hard fail. Does not emit a binary on Err.
     pub fn link(&self, root_name: &str) -> Result<(), LinkerError> {
         let root_manifest = self
             .registry
             .get(root_name)
             .ok_or_else(|| LinkerError::DependencyNotFound(root_name.to_string()))?;
 
-        // 1. Gather all nodes in the transitive dependency graph
         let mut nodes = Vec::new();
         let mut node_indices = HashMap::new();
         self.collect_dependencies(root_manifest, &mut nodes, &mut node_indices)?;
@@ -54,7 +54,6 @@ impl SpectralGovernor {
             return Ok(());
         }
 
-        // 2. Build adjacency matrix A and lambda gain vector
         let mut adjacency = vec![vec![0.0; n]; n];
         let mut lambdas = vec![0.0; n];
 
@@ -68,7 +67,6 @@ impl SpectralGovernor {
                         .get(dep_name)
                         .ok_or_else(|| LinkerError::DependencyNotFound(dep_name.to_string()))?;
 
-                    // Prime compatibility check
                     if let Some(expected_prime) = dep_meta.prime_index {
                         if expected_prime != dep_manifest.ensemble.prime_index {
                             return Err(LinkerError::IncompatiblePrime(
@@ -85,16 +83,14 @@ impl SpectralGovernor {
             }
         }
 
-        // 3. Certify small-gain with a theorem_name anchor. Raw ρ is not a receipt.
         let ensemble = Ensemble::new(root_name, adjacency, lambdas)
             .with_theorem_name(root_manifest.governance.theorem_name.clone());
-        match spectral::validate_and_certify(&ensemble, 1e-6) {
+        match spectral::validate_and_certify(&ensemble, 0.0) {
             Ok(receipt) => {
-                if receipt.spectral_radius >= 1.0 {
-                    return Err(LinkerError::SpectralBudgetExceeded {
+                if !receipt.is_norm_contractive {
+                    return Err(LinkerError::NormContractivityViolation {
                         ensemble: root_name.to_string(),
-                        total: receipt.spectral_radius,
-                        limit: 1.0,
+                        norm_1: receipt.exact_rational_norm_1,
                     });
                 }
                 Ok(())
@@ -102,6 +98,12 @@ impl SpectralGovernor {
             Err(e) if e.contains("MissingTheoremAnchor") => {
                 Err(LinkerError::MissingTheoremAnchor {
                     ensemble: root_name.to_string(),
+                })
+            }
+            Err(e) if e.contains("NormContractivityViolation") => {
+                Err(LinkerError::NormContractivityViolation {
+                    ensemble: root_name.to_string(),
+                    norm_1: (1, 1),
                 })
             }
             Err(_) => Err(LinkerError::SpectralBudgetExceeded {
@@ -275,7 +277,6 @@ mod tests {
         governor.register(node_a);
         governor.register(node_b);
 
-        // Feedback loop with high coupling gains (1.5 * 0.9 * 1.5 * 0.9 = 1.8225 > 1)
         assert!(governor.link("node_a").is_err());
     }
 }
