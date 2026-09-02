@@ -192,7 +192,7 @@ pub fn is_theorem_anchor(name: &str) -> bool {
     let mut chars = s.chars();
     match chars.next() {
         Some(c) if c.is_ascii_alphabetic() || c == '_' => {
-            chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'')
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'' || c == '.')
         }
         _ => false,
     }
@@ -552,8 +552,8 @@ mod kani_harnesses {
         kani::assume(q < 1000);
         if let Ok(rat) = PosRat::new(p, q) {
             let (num, den) = rat.as_pair();
-            kani::assert(den > 0);
-            kani::assert(num * q == p * den);
+            kani::assert(den > 0, "denominator is positive after reduction");
+            kani::assert(num * q == p * den, "reduction preserves value");
         }
     }
 }

@@ -12,3 +12,6 @@ rust-version = "1.85"
 serde = { workspace = true }
 pirtm-engine = { path = "../pirtm-engine" }
 pirtm-monitor = { path = "../pirtm-monitor" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

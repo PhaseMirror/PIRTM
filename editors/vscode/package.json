@@ -1,0 +1,39 @@
+{
+  "name": "pirtm-vscode",
+  "displayName": "PIRTM Governed Language & Compiler Extension",
+  "description": "VS Code extension connecting to PIRTM Daemon (pirtmd) for exact rational Small-Gain verification, Lean 4 theorem anchoring, and MLIR transpilation.",
+  "version": "1.1.0",
+  "publisher": "PhaseMirror",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "pirtm",
+        "aliases": ["PIRTM", "pirtm"],
+        "extensions": [".pirtm"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pirtm.compile",
+        "title": "PIRTM: Compile & Verify Small-Gain 1-Norm"
+      },
+      {
+        "command": "pirtm.validate",
+        "title": "PIRTM: Run Sentinel Governance Gate"
+      },
+      {
+        "command": "pirtm.status",
+        "title": "PIRTM: Display WardMonitor Status"
+      }
+    ]
+  }
+}

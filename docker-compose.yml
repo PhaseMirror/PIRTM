@@ -14,6 +14,19 @@ services:
       - MCP_PORT=8080
       - PIRTM_SPECTRAL_BOUND=1.0
 
+  pirtm-daemon:
+    build:
+      context: ./rust
+      dockerfile: Dockerfile.daemon
+    container_name: pirtm-daemon
+    restart: always
+    ports:
+      - "8090:8090"
+    environment:
+      - RUST_LOG=info
+      - DAEMON_PORT=8090
+      - PIRTM_SPECTRAL_BOUND=1.0
+
   governed-ui:
     build:
       context: ./pirtm-governed-toolchain
@@ -24,5 +37,7 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_MCP_ENDPOINT=http://mcp-server:8080
+      - NEXT_PUBLIC_DAEMON_ENDPOINT=ws://pirtm-daemon:8090
     depends_on:
       - mcp-server
+      - pirtm-daemon

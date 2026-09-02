@@ -23,6 +23,8 @@ members = [
     "pirtm-tools",
     "pirtm-web-sdk",
     "pirtm-goldilocks",
+    "pirtm-daemon",
+    "pirtm-tui",
 ]
 resolver = "2"
 
