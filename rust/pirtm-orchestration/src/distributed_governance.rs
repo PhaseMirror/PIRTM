@@ -108,9 +108,14 @@ mod tests {
         let ensemble = Ensemble::new(
             "cluster_ensemble",
             vec![vec![0.0, 0.3], vec![0.3, 0.0]],
+<<<<<<< HEAD
             vec![0.9, 0.9],
         )
         .with_theorem_name("author_declared_lambda");
+=======
+            vec![(9, 10), (9, 10)],
+        ).with_theorem_name("author_declared_lambda");
+>>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 
         let node1 = DistributedSentinelNode::new(
             "node_1",

@@ -163,6 +163,7 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
         }
         "pirtm_verify_ensemble" | "verify_ensemble" => {
             let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("unnamed_ensemble");
+            let theorem_name = args.get("theorem_name").and_then(|v| v.as_str()).unwrap_or("author_declared_lambda");
             let matrix: Vec<Vec<f64>> = serde_json::from_value(args.get("adjacency_matrix").cloned().unwrap_or(json!([])))
                 .map_err(|e| format!("Invalid adjacency_matrix: {}", e))?;
             let lambdas: Vec<f64> = serde_json::from_value(args.get("lambdas").cloned().unwrap_or(json!([])))
@@ -172,6 +173,7 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
+<<<<<<< HEAD
             let ensemble = Ensemble::new(name, matrix, lambdas).with_theorem_name(theorem_name);
             match validate_and_certify(&ensemble, 0.0) {
                 Ok(receipt) => Ok(json!({
@@ -210,16 +212,46 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                     }],
                     "isError": true
                 })),
+=======
+            let rational_lambdas: Vec<(u64, u64)> = lambdas
+                .iter()
+                .map(|&l| ((l * 1_000_000.0).round() as u64, 1_000_000))
+                .collect();
+
+            let ensemble = Ensemble::new(name, matrix, rational_lambdas)
+                .with_theorem_name(theorem_name);
+
+            match validate_and_certify(&ensemble, 0.0) {
+                Ok(receipt) => {
+                    Ok(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": serde_json::to_string_pretty(&json!({
+                                "ensemble_name": name,
+                                "theorem_name": receipt.theorem_name,
+                                "exact_rational_norm_1": receipt.exact_rational_norm_1,
+                                "is_stable": receipt.is_stable,
+                                "receipt_hash": receipt.hash,
+                                "action": "ACCEPT"
+                            })).unwrap()
+                        }]
+                    }))
+                }
+>>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
                 Err(err) => Ok(json!({
                     "content": [{
                         "type": "text",
                         "text": serde_json::to_string_pretty(&json!({
                             "status": "REJECTED",
+<<<<<<< HEAD
                             "error": err,
                             "action": "REJECT"
+=======
+                            "error": err.to_string(),
+                            "action": "SIG_GOV_KILL"
+>>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
                         })).unwrap()
-                    }],
-                    "isError": true
+                    }]
                 })),
             }
         }

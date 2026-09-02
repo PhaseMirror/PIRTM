@@ -19,6 +19,7 @@ uuid = { workspace = true }
 nalgebra = { workspace = true }
 anyhow = "1.0"
 hex = { workspace = true }
+num-rational = "0.4"
 pirtm-monitor = { path = "../pirtm-monitor" }
 goldilocks = { path = "../pirtm-goldilocks" }
 

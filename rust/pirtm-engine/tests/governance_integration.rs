@@ -6,10 +6,16 @@ use pirtm_monitor::{ManifoldState, MockStateProvider, MonitorConfig};
 fn test_sentinel_validate_and_seal_stable_state() {
     let stable_ensemble = Ensemble::new(
         "test_stable",
+<<<<<<< HEAD
         vec![vec![0.0, 0.5], vec![0.5, 0.0]],
         vec![0.9, 0.9],
     )
     .with_theorem_name("author_declared_lambda");
+=======
+        vec![vec![0.0, 0.4], vec![0.4, 0.0]],
+        vec![(4, 5), (4, 5)],
+    ).with_theorem_name("author_declared_lambda");
+>>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 
     let provider = MockStateProvider::new(vec![ManifoldState {
         rho: 0.42,
