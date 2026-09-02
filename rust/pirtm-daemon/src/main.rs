@@ -115,6 +115,72 @@ async fn handle_connection(
     Ok(())
 }
 
+/// Lexically locates standalone `---` header delimiter line outside string literals/comments (ADR-060)
+pub fn find_explicit_delimiter_line(source: &str) -> Option<usize> {
+    let mut in_block_comment = false;
+    let mut byte_offset = 0;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("/*") && !trimmed.contains("*/") {
+            in_block_comment = true;
+        } else if trimmed.contains("*/") {
+            in_block_comment = false;
+        }
+
+        if !in_block_comment && trimmed == "---" {
+            return Some(byte_offset);
+        }
+
+        byte_offset += line.len() + 1;
+    }
+
+    None
+}
+
+/// Lexically locates header split offset (explicit `---` or implicit body boundary) (ADR-057, ADR-060)
+pub fn find_header_split_offset(source: &str) -> Option<(usize, bool)> {
+    let mut in_block_comment = false;
+    let mut byte_offset = 0;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("/*") && !trimmed.contains("*/") {
+            in_block_comment = true;
+        } else if trimmed.contains("*/") {
+            in_block_comment = false;
+        }
+
+        if !in_block_comment {
+            if trimmed == "---" {
+                return Some((byte_offset, true)); // Explicit header delimiter
+            }
+            if trimmed.starts_with("fn ") || trimmed.starts_with("struct ") || trimmed.starts_with("enum ") || trimmed.starts_with("impl ") {
+                return Some((byte_offset, false)); // Implicit body boundary
+            }
+        }
+
+        byte_offset += line.len() + 1;
+    }
+
+    None
+}
+
+/// Splits PIRTM contract source into (envelope_header, application_body) (ADR-057)
+pub fn split_header_body(source: &str) -> (&str, &str) {
+    if let Some((offset, explicit)) = find_header_split_offset(source) {
+        let (header, rest) = source.split_at(offset);
+        let body = if explicit {
+            rest.trim_start_matches(|c| c == '-' || c == '\r' || c == '\n' || c == ' ')
+        } else {
+            rest
+        };
+        (header, body)
+    } else {
+        (source, "")
+    }
+}
+
 /// Helper to parse a single rational tuple `(num, den)` from AST Expr
 fn parse_ast_pair(expr: &Expr) -> Result<(u64, u64), String> {
     match expr {
@@ -150,9 +216,17 @@ fn parse_ast_row(expr: &Expr) -> Result<Vec<(u64, u64)>, String> {
     }
 }
 
-/// Walk AST statements returned by pirtm_parser to extract matrix and lambdas (ignoring comments)
+/// Walk AST statements in envelope header (Phase 1) enforcing strict header validation (ADR-058, ADR-061)
 fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u64, u64)>), String> {
-    let program = pirtm_parser::parse(source).map_err(|e| format!("ParseError: {}", e))?;
+    let (header_text, body_text) = split_header_body(source);
+
+    // Reject multiple '---' delimiters in body text (ADR-061)
+    if !body_text.is_empty() && find_explicit_delimiter_line(body_text).is_some() {
+        return Err("MultipleHeaderDelimiters: multiple '---' header delimiters are strictly forbidden per ADR-061".to_string());
+    }
+
+    // Parse header text using pirtm_parser (ignoring comments)
+    let program = pirtm_parser::parse(header_text).map_err(|e| format!("ParseError in envelope header: {}", e))?;
 
     let mut matrix: Option<Vec<Vec<(u64, u64)>>> = None;
     let mut lambdas: Option<Vec<(u64, u64)>> = None;
@@ -173,9 +247,16 @@ fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u
                     }
                 } else if name == "lambdas" {
                     lambdas = Some(parse_ast_row(expr)?);
+                } else if name == "theorem" {
+                    // Allowed header theorem declaration
+                } else {
+                    return Err(format!("InvalidHeaderStatement: unexpected let binding 'let {}' in envelope header per ADR-058", name));
                 }
             }
-            _ => {}
+            Stmt::Import(_) | Stmt::Ensemble(_) => {}
+            _ => {
+                return Err("InvalidHeaderStatement: application statements are quarantined from the envelope header per ADR-058".to_string());
+            }
         }
     }
 
@@ -226,31 +307,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Parse and compile source using pirtm_compiler
-            let compiler = PhaseMirrorCompiler::new();
-            let mlir_module = match compiler.compile(source) {
-                Ok(m) => m,
-                Err(err) => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some(format!("CompileError: {}", err)),
-                    };
-                }
-            };
-
-            let mlir_text = match compiler.to_mlir(&mlir_module) {
-                Ok(t) => t,
-                Err(err) => {
-                    return DaemonResponse {
-                        id: req.id,
-                        result: None,
-                        error: Some(format!("MlirEmissionError: {}", err)),
-                    };
-                }
-            };
-
-            // Extract (matrix, lambdas) directly from parsed AST; fail closed if absent or in comments
+            // Phase 1 Governance Gate: Extract (matrix, lambdas) directly from envelope header; fail closed if absent, malformed, or multiple delimiters
             let (matrix, lambdas) = match extract_spectral_params(source) {
                 Ok(params) => params,
                 Err(err) => {
@@ -279,21 +336,49 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            match spectral::validate_and_certify(&ensemble, 0.0) {
-                Ok(receipt) => DaemonResponse {
-                    id: req.id,
-                    result: Some(json!({
-                        "status": "COMPILED",
-                        "mlir": mlir_text,
-                        "receipt": receipt
-                    })),
-                    error: None,
-                },
-                Err(e) => DaemonResponse {
-                    id: req.id,
-                    result: None,
-                    error: Some(format!("Spectral Gate Rejected: {}", e)),
-                },
+            let receipt = match spectral::validate_and_certify(&ensemble, 0.0) {
+                Ok(r) => r,
+                Err(e) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(format!("Spectral Gate Rejected: {}", e)),
+                    };
+                }
+            };
+
+            // Phase 2 Code Generation: Parse application source and emit MLIR
+            let compiler = PhaseMirrorCompiler::new();
+            let mlir_module = match compiler.compile(source) {
+                Ok(m) => m,
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(format!("CompileError: {}", err)),
+                    };
+                }
+            };
+
+            let mlir_text = match compiler.to_mlir(&mlir_module) {
+                Ok(t) => t,
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(format!("MlirEmissionError: {}", err)),
+                    };
+                }
+            };
+
+            DaemonResponse {
+                id: req.id,
+                result: Some(json!({
+                    "status": "COMPILED",
+                    "mlir": mlir_text,
+                    "receipt": receipt
+                })),
+                error: None,
             }
         }
         "validate" => {
@@ -451,7 +536,7 @@ mod tests {
             id: 102,
             method: "compile".to_string(),
             params: json!({
-                "source": "fn main() -> i64 { return 42; }",
+                "source": "let x = 42;",
                 "name": "test_contract",
                 "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
             }),
@@ -460,11 +545,12 @@ mod tests {
         let resp = process_request(req, state).await;
         assert_eq!(resp.id, 102);
         assert!(resp.error.is_some());
-        assert!(resp.error.unwrap().contains("MissingSpectralParams"));
+        let err = resp.error.unwrap();
+        assert!(err.contains("InvalidHeaderStatement") || err.contains("MissingSpectralParams"));
     }
 
     #[tokio::test]
-    async fn test_daemon_process_request_compile_fail_closed_comment_matrix() {
+    async fn test_daemon_process_request_compile_fail_closed_unexpected_header_stmt() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
                 dry_run: true,
@@ -476,10 +562,12 @@ mod tests {
             session_count: 0,
         }));
 
-        // Comments cannot mint a receipt in AST walker
-        let comment_source = r#"
-        // let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
-        // let lambdas = ((9, 10), (9, 10));
+        // Header contains extra non-envelope let binding (ADR-058 violation)
+        let unexpected_header_source = r#"
+        let foo = 42;
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        ---
         fn main() -> i64 { return 42; }
         "#;
 
@@ -487,7 +575,7 @@ mod tests {
             id: 103,
             method: "compile".to_string(),
             params: json!({
-                "source": comment_source,
+                "source": unexpected_header_source,
                 "name": "test_contract",
                 "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
             }),
@@ -496,7 +584,44 @@ mod tests {
         let resp = process_request(req, state).await;
         assert_eq!(resp.id, 103);
         assert!(resp.error.is_some());
-        assert!(resp.error.unwrap().contains("MissingSpectralParams"));
+        assert!(resp.error.unwrap().contains("InvalidHeaderStatement"));
+    }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_compile_fail_closed_multiple_delimiters() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let double_delimiter_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        ---
+        fn main() -> i64 { return 42; }
+        ---
+        "#;
+
+        let req = DaemonRequest {
+            id: 104,
+            method: "compile".to_string(),
+            params: json!({
+                "source": double_delimiter_source,
+                "name": "test_contract",
+                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 104);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("MultipleHeaderDelimiters"));
     }
 
     #[tokio::test]
@@ -522,7 +647,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 104,
+            id: 105,
             method: "compile".to_string(),
             params: json!({
                 "source": valid_ast_source,
@@ -532,64 +657,11 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 104);
+        assert_eq!(resp.id, 105);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
         assert_eq!(result["receipt"]["is_norm_contractive"], true);
-    }
-
-    #[tokio::test]
-    async fn test_daemon_process_request_compile_fail_closed_missing_theorem() {
-        let state = Arc::new(Mutex::new(DaemonState {
-            runtime: Runtime::new(RuntimeConfig {
-                dry_run: true,
-                jid_enabled: false,
-                ledger_enabled: true,
-                enforce_bounds: true,
-                input_args: vec![],
-            }),
-            session_count: 0,
-        }));
-
-        let req = DaemonRequest {
-            id: 105,
-            method: "compile".to_string(),
-            params: json!({
-                "source": "let matrix = (((0, 1),)); let lambdas = ((9, 10),);"
-            }),
-        };
-
-        let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 105);
-        assert!(resp.error.is_some());
-        assert!(resp.error.unwrap().contains("MissingTheoremAnchor"));
-    }
-
-    #[tokio::test]
-    async fn test_daemon_process_request_get_status() {
-        let state = Arc::new(Mutex::new(DaemonState {
-            runtime: Runtime::new(RuntimeConfig {
-                dry_run: true,
-                jid_enabled: false,
-                ledger_enabled: true,
-                enforce_bounds: true,
-                input_args: vec![],
-            }),
-            session_count: 0,
-        }));
-
-        let req = DaemonRequest {
-            id: 106,
-            method: "get_status".to_string(),
-            params: json!({}),
-        };
-
-        let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 106);
-        let result = resp.result.unwrap();
-        assert_eq!(result["daemon_status"], "ACTIVE");
-        assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
     }
 
     #[tokio::test]
@@ -615,7 +687,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 107,
+            id: 106,
             method: "compile".to_string(),
             params: json!({
                 "source": header_delimited_source,
@@ -625,9 +697,35 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 107);
+        assert_eq!(resp.id, 106);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
+    }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_get_status() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let req = DaemonRequest {
+            id: 107,
+            method: "get_status".to_string(),
+            params: json!({}),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 107);
+        let result = resp.result.unwrap();
+        assert_eq!(result["daemon_status"], "ACTIVE");
+        assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
     }
 }
