@@ -1499,6 +1499,7 @@ dependencies = [
  "pirtm-engine",
  "pirtm-mcp",
  "pirtm-monitor",
+ "pirtm-parser",
  "serde",
  "serde_json",
  "sha2",

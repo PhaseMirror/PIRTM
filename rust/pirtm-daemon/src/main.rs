@@ -17,6 +17,7 @@ use tokio_tungstenite::tungstenite::Message;
 use pirtm_compiler::PhaseMirrorCompiler;
 use pirtm_engine::spectral::{self, Ensemble};
 use pirtm_engine::{Runtime, RuntimeConfig};
+use pirtm_parser::ast::{Expr, Stmt};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DaemonRequest {
@@ -114,75 +115,82 @@ async fn handle_connection(
     Ok(())
 }
 
-/// Extract matrix [[(n, d), ...], ...] and lambdas [(n, d), ...] directly from source AST
+/// Helper to parse a single rational tuple `(num, den)` from AST Expr
+fn parse_ast_pair(expr: &Expr) -> Result<(u64, u64), String> {
+    match expr {
+        Expr::Tuple(elems) if elems.len() == 2 => {
+            let n = match &elems[0] {
+                Expr::Literal(num) => *num,
+                _ => return Err("InvalidASTPair: numerator must be an integer literal".to_string()),
+            };
+            let d = match &elems[1] {
+                Expr::Literal(den) => *den,
+                _ => return Err("InvalidASTPair: denominator must be an integer literal".to_string()),
+            };
+            if d == 0 {
+                return Err("ZeroDenominator: rational denominator must be > 0".to_string());
+            }
+            Ok((n, d))
+        }
+        _ => Err("InvalidASTPair: expected tuple expression (num, den)".to_string()),
+    }
+}
+
+/// Helper to parse a row of rational tuples from AST Expr
+fn parse_ast_row(expr: &Expr) -> Result<Vec<(u64, u64)>, String> {
+    match expr {
+        Expr::Tuple(elems) => {
+            let mut row = Vec::new();
+            for elem in elems {
+                row.push(parse_ast_pair(elem)?);
+            }
+            Ok(row)
+        }
+        _ => Err("InvalidASTRow: expected tuple of rational pairs".to_string()),
+    }
+}
+
+/// Walk AST statements returned by pirtm_parser to extract matrix and lambdas (ignoring comments)
 fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u64, u64)>), String> {
-    let matrix_idx = source.find("matrix").ok_or_else(|| {
-        "MissingSpectralParams: source does not contain 'matrix' declaration".to_string()
-    })?;
-    let lambdas_idx = source.find("lambdas").ok_or_else(|| {
-        "MissingSpectralParams: source does not contain 'lambdas' declaration".to_string()
-    })?;
+    let program = pirtm_parser::parse(source).map_err(|e| format!("ParseError: {}", e))?;
 
-    let matrix_sub = &source[matrix_idx..];
-    let lambdas_sub = &source[lambdas_idx..];
+    let mut matrix: Option<Vec<Vec<(u64, u64)>>> = None;
+    let mut lambdas: Option<Vec<(u64, u64)>> = None;
 
-    let matrix_start = matrix_sub.find('[').ok_or_else(|| "UnparseableMatrix: missing '['".to_string())?;
-    let matrix_end = matrix_sub.find("]]").ok_or_else(|| "UnparseableMatrix: missing ']]'".to_string())?;
-    let matrix_str = &matrix_sub[matrix_start + 1..matrix_end + 1];
-
-    let mut matrix = Vec::new();
-    for row_str in matrix_str.split(']') {
-        let row_trimmed = row_str.trim().trim_start_matches(',').trim().trim_start_matches('[');
-        if row_trimmed.is_empty() {
-            continue;
-        }
-        let mut row = Vec::new();
-        for pair_str in row_trimmed.split(')') {
-            let p_trimmed = pair_str.trim().trim_start_matches(',').trim().trim_start_matches('(');
-            if p_trimmed.is_empty() {
-                continue;
-            }
-            let parts: Vec<&str> = p_trimmed.split(',').map(|s| s.trim()).collect();
-            if parts.len() == 2 {
-                let num: u64 = parts[0].parse().map_err(|_| "InvalidNum".to_string())?;
-                let den: u64 = parts[1].parse().map_err(|_| "InvalidDen".to_string())?;
-                if den == 0 {
-                    return Err("ZeroDenominator: matrix entry denominator must be > 0".to_string());
+    for stmt in &program.stmts {
+        match stmt {
+            Stmt::Let { name, expr } | Stmt::LetMut { name, expr } => {
+                if name == "matrix" {
+                    match expr {
+                        Expr::Tuple(rows) => {
+                            let mut m = Vec::new();
+                            for row_expr in rows {
+                                m.push(parse_ast_row(row_expr)?);
+                            }
+                            matrix = Some(m);
+                        }
+                        _ => return Err("InvalidASTMatrix: 'let matrix' must be a nested tuple of rows".to_string()),
+                    }
+                } else if name == "lambdas" {
+                    lambdas = Some(parse_ast_row(expr)?);
                 }
-                row.push((num, den));
             }
-        }
-        if !row.is_empty() {
-            matrix.push(row);
+            _ => {}
         }
     }
 
-    let lambdas_start = lambdas_sub.find('[').ok_or_else(|| "UnparseableLambdas: missing '['".to_string())?;
-    let lambdas_end = lambdas_sub.find(']').ok_or_else(|| "UnparseableLambdas: missing ']'".to_string())?;
-    let lambdas_str = &lambdas_sub[lambdas_start + 1..lambdas_end];
+    let m = matrix.ok_or_else(|| {
+        "MissingSpectralParams: program AST does not declare 'let matrix = ...;' statement".to_string()
+    })?;
+    let l = lambdas.ok_or_else(|| {
+        "MissingSpectralParams: program AST does not declare 'let lambdas = ...;' statement".to_string()
+    })?;
 
-    let mut lambdas = Vec::new();
-    for pair_str in lambdas_str.split(')') {
-        let p_trimmed = pair_str.trim().trim_start_matches(',').trim().trim_start_matches('(');
-        if p_trimmed.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = p_trimmed.split(',').map(|s| s.trim()).collect();
-        if parts.len() == 2 {
-            let num: u64 = parts[0].parse().map_err(|_| "InvalidLambdaNum".to_string())?;
-            let den: u64 = parts[1].parse().map_err(|_| "InvalidLambdaDen".to_string())?;
-            if den == 0 {
-                return Err("ZeroDenominator: lambda denominator must be > 0".to_string());
-            }
-            lambdas.push((num, den));
-        }
+    if m.is_empty() || l.is_empty() {
+        return Err("MissingSpectralParams: empty matrix or lambdas declared in AST".to_string());
     }
 
-    if matrix.is_empty() || lambdas.is_empty() {
-        return Err("MissingSpectralParams: empty matrix or lambdas declared in source".to_string());
-    }
-
-    Ok((matrix, lambdas))
+    Ok((m, l))
 }
 
 async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> DaemonResponse {
@@ -242,7 +250,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Extract (matrix, lambdas) directly from source AST; fail closed if absent
+            // Extract (matrix, lambdas) directly from parsed AST; fail closed if absent or in comments
             let (matrix, lambdas) = match extract_spectral_params(source) {
                 Ok(params) => params,
                 Err(err) => {
@@ -254,7 +262,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Evaluate 1-norm contractivity over exact rational pairs extracted from source
+            // Evaluate 1-norm contractivity over exact rational pairs extracted from AST
             let ensemble = match Ensemble::from_rationals(
                 name,
                 matrix,
@@ -308,7 +316,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Extract (matrix, lambdas) directly from source AST if provided, or fail closed
+            // Extract (matrix, lambdas) directly from parsed AST if provided, or fail closed
             let (matrix, lambdas) = match extract_spectral_params(source) {
                 Ok(params) => params,
                 Err(err) => {
@@ -456,6 +464,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_daemon_process_request_compile_fail_closed_comment_matrix() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        // Comments cannot mint a receipt in AST walker
+        let comment_source = r#"
+        // let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        // let lambdas = ((9, 10), (9, 10));
+        fn main() -> i64 { return 42; }
+        "#;
+
+        let req = DaemonRequest {
+            id: 103,
+            method: "compile".to_string(),
+            params: json!({
+                "source": comment_source,
+                "name": "test_contract",
+                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 103);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("MissingSpectralParams"));
+    }
+
+    #[tokio::test]
     async fn test_daemon_process_request_compile_valid_ast_matrix() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
@@ -468,10 +512,9 @@ mod tests {
             session_count: 0,
         }));
 
-        let valid_source = r#"
-        // PIRTM Governed Contract
-        // matrix [[(0, 1), (4, 10)], [(4, 10), (0, 1)]]
-        // lambdas [(9, 10), (9, 10)]
+        let valid_ast_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
 
         fn main() -> i64 {
             return 42;
@@ -479,18 +522,17 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 103,
+            id: 104,
             method: "compile".to_string(),
             params: json!({
-                "source": valid_source,
+                "source": valid_ast_source,
                 "name": "test_contract",
                 "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
             }),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 103);
-        println!("COMPILE AST RESP: {:?}", resp);
+        assert_eq!(resp.id, 104);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
@@ -511,15 +553,15 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 104,
+            id: 105,
             method: "compile".to_string(),
             params: json!({
-                "source": "matrix [[(0,1)]] lambdas [(9,10)]"
+                "source": "let matrix = (((0, 1),)); let lambdas = ((9, 10),);"
             }),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 104);
+        assert_eq!(resp.id, 105);
         assert!(resp.error.is_some());
         assert!(resp.error.unwrap().contains("MissingTheoremAnchor"));
     }
@@ -538,13 +580,13 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 105,
+            id: 106,
             method: "get_status".to_string(),
             params: json!({}),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 105);
+        assert_eq!(resp.id, 106);
         let result = resp.result.unwrap();
         assert_eq!(result["daemon_status"], "ACTIVE");
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");

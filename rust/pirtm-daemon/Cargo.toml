@@ -15,6 +15,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 pirtm-engine = { path = "../pirtm-engine" }
 pirtm-compiler = { path = "../pirtm-compiler" }
+pirtm-parser = { path = "../pirtm-parser" }
 pirtm-mcp = { path = "../pirtm-mcp" }
 pirtm-monitor = { path = "../pirtm-monitor" }
 
