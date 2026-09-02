@@ -60,8 +60,6 @@ impl<P: ManifoldStateProvider> DistributedGovernanceCluster<P> {
         let mut kill_reason = String::new();
 
         for node in &mut self.nodes {
-            // Note: validate_and_seal handles local verification. For testing cluster consensus,
-            // we catch the vote output directly.
             let vote = node.evaluate_local(ensemble);
             match vote {
                 ConsensusVote::Pass(receipt) => {
@@ -107,11 +105,12 @@ mod tests {
 
     #[test]
     fn test_distributed_governance_cluster_consensus() {
-        let ensemble = Ensemble {
-            name: "cluster_ensemble".to_string(),
-            adjacency: vec![vec![0.0, 0.3], vec![0.3, 0.0]],
-            lambdas: vec![0.9, 0.9],
-        };
+        let ensemble = Ensemble::new(
+            "cluster_ensemble",
+            vec![vec![0.0, 0.3], vec![0.3, 0.0]],
+            vec![0.9, 0.9],
+        )
+        .with_theorem_name("author_declared_lambda");
 
         let node1 = DistributedSentinelNode::new(
             "node_1",

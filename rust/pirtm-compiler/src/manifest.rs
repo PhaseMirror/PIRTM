@@ -23,6 +23,9 @@ pub struct GovernanceMeta {
     pub epsilon: Option<f64>,
     pub contractivity_receipt: String,
     pub ledger_anchor: Option<String>,
+    /// Author-declared Lean identifier. Absent/empty TOML fails certify.
+    #[serde(default)]
+    pub theorem_name: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

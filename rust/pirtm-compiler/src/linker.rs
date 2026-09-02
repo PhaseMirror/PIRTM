@@ -11,11 +11,14 @@ pub enum LinkerError {
         limit: f64,
     },
     IncompatiblePrime(u64, u64),
+    MissingTheoremAnchor {
+        ensemble: String,
+    },
 }
 
 /// The SpectralGovernor oversees the linking of multiple ensembles.
 /// It constructs the topological interconnection matrix A and gains λ,
-/// and computes ρ(|A|·diag(λ)) < 1.0 via the Spectral Small-Gain Runtime Gate.
+/// and certifies ρ(|A|·diag(λ)) < 1.0 via validate_and_certify.
 pub struct SpectralGovernor {
     registry: HashMap<String, EnsembleManifest>,
 }
@@ -33,7 +36,8 @@ impl SpectralGovernor {
             .insert(manifest.ensemble.name.clone(), manifest);
     }
 
-    /// Link a root ensemble, verifying all dependencies and true matrix spectral radius.
+    /// Link a root ensemble, verifying dependencies and issuing a certified receipt.
+    /// Missing theorem_name is a hard fail. Does not emit a binary on Err.
     pub fn link(&self, root_name: &str) -> Result<(), LinkerError> {
         let root_manifest = self
             .registry
@@ -81,25 +85,31 @@ impl SpectralGovernor {
             }
         }
 
-        // 3. Evaluate the true Small-Gain Spectral Radius Invariant: ρ(|A|·diag(λ)) < 1.0
-        let ensemble = Ensemble::new(root_name, adjacency, lambdas);
-        let rho = spectral::check_small_gain(&ensemble, 1e-6).map_err(|_| {
-            LinkerError::SpectralBudgetExceeded {
+        // 3. Certify small-gain with a theorem_name anchor. Raw ρ is not a receipt.
+        let ensemble = Ensemble::new(root_name, adjacency, lambdas)
+            .with_theorem_name(root_manifest.governance.theorem_name.clone());
+        match spectral::validate_and_certify(&ensemble, 1e-6) {
+            Ok(receipt) => {
+                if receipt.spectral_radius >= 1.0 {
+                    return Err(LinkerError::SpectralBudgetExceeded {
+                        ensemble: root_name.to_string(),
+                        total: receipt.spectral_radius,
+                        limit: 1.0,
+                    });
+                }
+                Ok(())
+            }
+            Err(e) if e.contains("MissingTheoremAnchor") => {
+                Err(LinkerError::MissingTheoremAnchor {
+                    ensemble: root_name.to_string(),
+                })
+            }
+            Err(_) => Err(LinkerError::SpectralBudgetExceeded {
                 ensemble: root_name.to_string(),
                 total: 1.0,
                 limit: 1.0,
-            }
-        })?;
-
-        if rho >= 1.0 {
-            return Err(LinkerError::SpectralBudgetExceeded {
-                ensemble: root_name.to_string(),
-                total: rho,
-                limit: 1.0,
-            });
+            }),
         }
-
-        Ok(())
     }
 
     fn collect_dependencies<'a>(
@@ -135,6 +145,16 @@ mod tests {
     use super::*;
     use crate::manifest::{DependencyMeta, EnsembleMeta, GovernanceMeta};
 
+    fn gov(radius: f64, receipt: &str, theorem_name: &str) -> GovernanceMeta {
+        GovernanceMeta {
+            spectral_radius: radius,
+            epsilon: None,
+            contractivity_receipt: receipt.to_string(),
+            ledger_anchor: None,
+            theorem_name: theorem_name.to_string(),
+        }
+    }
+
     #[test]
     fn test_linker_composition_success() {
         let mut governor = SpectralGovernor::new();
@@ -157,12 +177,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-            governance: GovernanceMeta {
-                spectral_radius: 0.5,
-                epsilon: None,
-                contractivity_receipt: "hash1".to_string(),
-                ledger_anchor: None,
-            },
+            governance: gov(0.5, "hash1", "author_declared_lambda"),
             dependencies: Some(deps),
         };
 
@@ -174,12 +189,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-            governance: GovernanceMeta {
-                spectral_radius: 0.2,
-                epsilon: None,
-                contractivity_receipt: "hash2".to_string(),
-                ledger_anchor: None,
-            },
+            governance: gov(0.2, "hash2", "author_declared_lambda"),
             dependencies: None,
         };
 
@@ -187,6 +197,31 @@ mod tests {
         governor.register(dep);
 
         assert!(governor.link("main-app").is_ok());
+    }
+
+    #[test]
+    fn test_linker_rejects_missing_theorem_name() {
+        let mut governor = SpectralGovernor::new();
+
+        let main = EnsembleManifest {
+            ensemble: EnsembleMeta {
+                name: "main-app".to_string(),
+                version: "1.0".to_string(),
+                prime_index: 2,
+                description: None,
+                authors: None,
+            },
+            governance: gov(0.5, "hash1", ""),
+            dependencies: None,
+        };
+        governor.register(main);
+
+        match governor.link("main-app") {
+            Err(LinkerError::MissingTheoremAnchor { ensemble }) => {
+                assert_eq!(ensemble, "main-app");
+            }
+            other => panic!("expected MissingTheoremAnchor, got {:?}", other),
+        }
     }
 
     #[test]
@@ -221,12 +256,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-            governance: GovernanceMeta {
-                spectral_radius: 0.9,
-                epsilon: None,
-                contractivity_receipt: "hash_a".to_string(),
-                ledger_anchor: None,
-            },
+            governance: gov(0.9, "hash_a", "author_declared_lambda"),
             dependencies: Some(deps_a),
         };
 
@@ -238,12 +268,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-            governance: GovernanceMeta {
-                spectral_radius: 0.9,
-                epsilon: None,
-                contractivity_receipt: "hash_b".to_string(),
-                ledger_anchor: None,
-            },
+            governance: gov(0.9, "hash_b", "author_declared_lambda"),
             dependencies: Some(deps_b),
         };
 

@@ -9,11 +9,12 @@ use std::time::Duration;
 
 #[test]
 fn test_governed_http_server_end_to_end() {
-    let ensemble = Ensemble {
-        name: "governed_http_ensemble".to_string(),
-        adjacency: vec![vec![0.0, 0.4], vec![0.4, 0.0]],
-        lambdas: vec![0.9, 0.9],
-    };
+    let ensemble = Ensemble::new(
+        "governed_http_ensemble",
+        vec![vec![0.0, 0.4], vec![0.4, 0.0]],
+        vec![0.9, 0.9],
+    )
+    .with_theorem_name("author_declared_lambda");
 
     let server = GovernedHttpServer::new(19999, ensemble);
     let running = Arc::new(AtomicBool::new(true));
