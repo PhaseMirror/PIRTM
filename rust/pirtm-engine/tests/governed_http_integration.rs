@@ -9,35 +9,29 @@ use std::time::Duration;
 
 #[test]
 fn test_governed_http_server_end_to_end() {
-    let ensemble = Ensemble::new(
+    let ensemble = Ensemble::from_rationals(
         "governed_http_ensemble",
-        vec![vec![0.0, 0.4], vec![0.4, 0.0]],
-        vec![0.9, 0.9],
+        vec![vec![(0, 1), (2, 5)], vec![(2, 5), (0, 1)]],
+        vec![(9, 10), (9, 10)],
+        "author_declared_lambda",
     )
-    .with_theorem_name("author_declared_lambda");
-
+    .unwrap();
     let server = GovernedHttpServer::new(19999, ensemble);
     let running = Arc::new(AtomicBool::new(true));
     let running_clone = running.clone();
-
     let server_handle = thread::spawn(move || {
         server.listen(running_clone).expect("GovernedHttpServer listen failed");
     });
-
     thread::sleep(Duration::from_millis(100));
-
     let mut stream = TcpStream::connect("127.0.0.1:19999").expect("Client failed to connect to server");
     stream.write_all(b"GET /governed-data HTTP/1.1\r\nHost: localhost\r\n\r\n").expect("Client write failed");
     stream.shutdown(std::net::Shutdown::Write).expect("Shutdown write failed");
-
     let mut response_bytes = Vec::new();
     stream.read_to_end(&mut response_bytes).expect("Client read failed");
     let response_str = String::from_utf8_lossy(&response_bytes);
-
     assert!(response_str.contains("HTTP/1.1 200 OK"));
     assert!(response_str.contains("qmhes_tag"));
     assert!(response_str.contains("goldilocks_proof_receipt"));
-
     running.store(false, Ordering::SeqCst);
     let _ = server_handle.join();
 }
