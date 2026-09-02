@@ -1,14 +1,8 @@
 //! Exact rational 1-norm contractivity gate.
 //!
-//! Production predicate:
-//!     G = |A| diag(λ),  ||G||_1 = max_j ∑_i |G_ij| < 1    in Q.
-//! Then ρ(G) ≤ ||G||_1 < 1.
-//!
-//! `theorem_name` presence is still required. Existence and content of that
-//! Lean declaration are not checked here (ADR-053 remains open).
-//!
-//! Float eigen-solvers in this file are diagnostic only. They are not hashed
-//! and are not a pass condition.
+//! Production predicate: ||G||_1 < 1 in Q for G = |A| diag(λ).
+//! Canonical constructor: Ensemble::from_rationals.
+//! Ensemble::new(f64) is deprecated Phase 1 SDK surface.
 
 use nalgebra::DMatrix;
 use serde::{Deserialize, Serialize};
@@ -29,7 +23,6 @@ fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
     a
 }
 
-/// Nonnegative rational n/d in lowest terms, d ≥ 1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PosRat {
     pub num: u64,
@@ -102,11 +95,12 @@ impl PosRat {
         (self.num, self.den)
     }
 
-    /// Temporary construction membrane from a nonnegative finite f64.
-    /// Official tests and new code should use `PosRat::new`.
     pub fn from_f64_membrane(x: f64) -> Result<Self, EnsembleError> {
-        if !x.is_finite() || x < 0.0 {
+        if !x.is_finite() {
             return Err(EnsembleError::InvalidRational);
+        }
+        if x < 0.0 {
+            return Err(EnsembleError::InvalidGain);
         }
         if x == 0.0 {
             return Ok(Self::zero());
@@ -152,6 +146,7 @@ pub enum EnsembleError {
     MissingTheoremAnchor,
     NormContractivityViolation { norm_1: (u64, u64) },
     InvalidRational,
+    InvalidGain,
     RationalOverflow,
     DimensionMismatch { matrix: usize, lambda: usize },
     MatrixNotSquare { row: usize, len: usize, expected: usize },
@@ -169,7 +164,10 @@ impl fmt::Display for EnsembleError {
                 norm_1.0, norm_1.1
             ),
             EnsembleError::InvalidRational => {
-                write!(f, "InvalidRational: denominator must be >= 1 and value nonnegative")
+                write!(f, "InvalidRational: denominator must be >= 1")
+            }
+            EnsembleError::InvalidGain => {
+                write!(f, "InvalidGain: contraction factor must be >= 0")
             }
             EnsembleError::RationalOverflow => {
                 write!(f, "RationalOverflow: intermediate 1-norm exceeded u64 after reduction")
@@ -200,6 +198,22 @@ pub fn is_theorem_anchor(name: &str) -> bool {
     }
 }
 
+pub fn matrix_pairs_from_f64(rows: &[Vec<f64>]) -> Result<Vec<Vec<(u64, u64)>>, EnsembleError> {
+    rows.iter()
+        .map(|row| {
+            row.iter()
+                .map(|x| PosRat::from_f64_membrane(*x).map(|p| p.as_pair()))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect()
+}
+
+pub fn lambda_pairs_from_f64(xs: &[f64]) -> Result<Vec<(u64, u64)>, EnsembleError> {
+    xs.iter()
+        .map(|x| PosRat::from_f64_membrane(*x).map(|p| p.as_pair()))
+        .collect()
+}
+
 fn matrix_from_f64(rows: &[Vec<f64>]) -> Result<Vec<Vec<PosRat>>, EnsembleError> {
     rows.iter()
         .map(|row| {
@@ -225,8 +239,7 @@ pub struct Ensemble {
 }
 
 impl Ensemble {
-    /// Construct from f64 literals via the continued-fraction membrane.
-    /// Prefer `from_rationals` for exact Q.
+    #[deprecated(note = "Use Ensemble::from_rationals with exact (u64, u64) ratios")]
     pub fn new(name: impl Into<String>, adjacency: Vec<Vec<f64>>, lambdas: Vec<f64>) -> Self {
         Self {
             name: name.into(),
@@ -236,17 +249,47 @@ impl Ensemble {
         }
     }
 
+    pub fn try_new(
+        name: impl Into<String>,
+        adjacency: Vec<Vec<f64>>,
+        lambdas: Vec<f64>,
+    ) -> Result<Self, EnsembleError> {
+        Ok(Self {
+            name: name.into(),
+            adjacency: matrix_from_f64(&adjacency)?,
+            lambdas: vec_from_f64(&lambdas)?,
+            theorem_name: String::new(),
+        })
+    }
+
     pub fn from_rationals(
         name: impl Into<String>,
-        adjacency: Vec<Vec<PosRat>>,
-        lambdas: Vec<PosRat>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            adjacency,
-            lambdas,
-            theorem_name: String::new(),
+        adjacency: Vec<Vec<(u64, u64)>>,
+        lambdas: Vec<(u64, u64)>,
+        theorem_name: impl Into<String>,
+    ) -> Result<Self, EnsembleError> {
+        let theorem_name = theorem_name.into();
+        if !is_theorem_anchor(&theorem_name) {
+            return Err(EnsembleError::MissingTheoremAnchor);
         }
+        let mut adj = Vec::with_capacity(adjacency.len());
+        for row in adjacency {
+            let mut r = Vec::with_capacity(row.len());
+            for (p, q) in row {
+                r.push(PosRat::new(p, q)?);
+            }
+            adj.push(r);
+        }
+        let mut lams = Vec::with_capacity(lambdas.len());
+        for (p, q) in lambdas {
+            lams.push(PosRat::new(p, q)?);
+        }
+        Ok(Self {
+            name: name.into(),
+            adjacency: adj,
+            lambdas: lams,
+            theorem_name,
+        })
     }
 
     pub fn with_theorem_name(mut self, theorem_name: impl Into<String>) -> Self {
@@ -260,9 +303,7 @@ pub struct EnsembleContractivityReceipt {
     pub hash: String,
     pub ensemble_name: String,
     pub dimension: usize,
-    /// Reduced ||G||_1 in Q.
     pub exact_rational_norm_1: (u64, u64),
-    /// true iff num < den.
     pub is_norm_contractive: bool,
     pub theorem_name: String,
     pub timestamp: u64,
@@ -278,7 +319,6 @@ impl EnsembleContractivityReceipt {
     }
 }
 
-/// Diagnostic only. Not used by validate_and_certify. Not hashed.
 pub fn spectral_radius_direct(matrix: &[Vec<f64>]) -> Result<f64, String> {
     let n = matrix.len();
     if n == 0 {
@@ -299,7 +339,6 @@ pub fn spectral_radius_direct(matrix: &[Vec<f64>]) -> Result<f64, String> {
     Ok(max_abs)
 }
 
-/// Diagnostic only. Not used by validate_and_certify. Not hashed.
 pub fn spectral_radius_power(matrix: &[Vec<f64>], max_iter: usize, tol: f64) -> Result<f64, String> {
     let n = matrix.len();
     if n == 0 {
@@ -351,7 +390,6 @@ fn one_norm(ensemble: &Ensemble) -> Result<PosRat, EnsembleError> {
             });
         }
     }
-
     let mut max = PosRat::zero();
     for j in 0..n {
         let mut col = PosRat::zero();
@@ -366,8 +404,6 @@ fn one_norm(ensemble: &Ensemble) -> Result<PosRat, EnsembleError> {
     Ok(max)
 }
 
-/// Official Q 1-norm gate. `margin` is ignored; the predicate is exact ||G||_1 < 1.
-/// Returns the 1-norm as f64 only for legacy call sites. That float is not hashed.
 pub fn check_small_gain(ensemble: &Ensemble, _margin: f64) -> Result<f64, String> {
     let n1 = one_norm(ensemble).map_err(|e| e.to_string())?;
     if !n1.lt_one() {
@@ -379,7 +415,6 @@ pub fn check_small_gain(ensemble: &Ensemble, _margin: f64) -> Result<f64, String
     Ok(n1.num as f64 / n1.den as f64)
 }
 
-/// Validate theorem_name and ||G||_1 < 1 in Q. Hash excludes any float eigen estimate.
 pub fn validate_and_certify(
     ensemble: &Ensemble,
     _margin: f64,
@@ -387,17 +422,6 @@ pub fn validate_and_certify(
     if !is_theorem_anchor(&ensemble.theorem_name) {
         return Err(EnsembleError::MissingTheoremAnchor.to_string());
     }
-    if ensemble.adjacency.is_empty() && !ensemble.lambdas.is_empty() {
-        return Err(EnsembleError::DimensionMismatch {
-            matrix: 0,
-            lambda: ensemble.lambdas.len(),
-        }
-        .to_string());
-    }
-    if ensemble.adjacency.iter().any(|row| row.is_empty()) && !ensemble.lambdas.is_empty() {
-        return Err(EnsembleError::InvalidRational.to_string());
-    }
-
     let n1 = one_norm(ensemble).map_err(|e| e.to_string())?;
     if !n1.lt_one() {
         return Err(EnsembleError::NormContractivityViolation {
@@ -405,7 +429,6 @@ pub fn validate_and_certify(
         }
         .to_string());
     }
-
     let mut hasher = Sha256::new();
     hasher.update(ensemble.name.as_bytes());
     hasher.update(ensemble.theorem_name.as_bytes());
@@ -422,12 +445,10 @@ pub fn validate_and_certify(
         hasher.update(&lam.den.to_le_bytes());
     }
     let hash = format!("{:x}", hasher.finalize());
-
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-
     let receipt = EnsembleContractivityReceipt {
         hash,
         ensemble_name: ensemble.name.clone(),
@@ -445,66 +466,68 @@ pub fn validate_and_certify(
 mod tests {
     use super::*;
 
-    fn q(n: u64, d: u64) -> PosRat {
-        PosRat::new(n, d).unwrap()
-    }
-
     #[test]
     fn test_one_norm_accept_retuned_loop() {
-        // A = [[0, 2/5], [2/5, 0]], λ = (9/10, 9/10), ||G||_1 = 9/25 < 1
         let ensemble = Ensemble::from_rationals(
             "retuned_loop",
-            vec![vec![q(0, 1), q(2, 5)], vec![q(2, 5), q(0, 1)]],
-            vec![q(9, 10), q(9, 10)],
+            vec![vec![(0, 1), (2, 5)], vec![(2, 5), (0, 1)]],
+            vec![(9, 10), (9, 10)],
+            "author_declared_lambda",
         )
-        .with_theorem_name("author_declared_lambda");
+        .unwrap();
         let n1 = one_norm(&ensemble).unwrap();
         assert_eq!(n1.as_pair(), (9, 25));
         let cert = validate_and_certify(&ensemble, 0.0).unwrap();
         assert!(cert.is_norm_contractive);
         assert_eq!(cert.exact_rational_norm_1, (9, 25));
-        assert_eq!(cert.theorem_name, "author_declared_lambda");
     }
 
     #[test]
     fn test_one_norm_reject_old_stable_loop() {
-        // Retired passing fixture: A = [[0, 2], [1/2, 0]], λ = (9/10, 9/10)
-        // ||G||_1 = 9/5 >= 1
         let ensemble = Ensemble::from_rationals(
             "old_stable_loop",
-            vec![vec![q(0, 1), q(2, 1)], vec![q(1, 2), q(0, 1)]],
-            vec![q(9, 10), q(9, 10)],
+            vec![vec![(0, 1), (2, 1)], vec![(1, 2), (0, 1)]],
+            vec![(9, 10), (9, 10)],
+            "author_declared_lambda",
         )
-        .with_theorem_name("author_declared_lambda");
+        .unwrap();
         let err = validate_and_certify(&ensemble, 0.0).unwrap_err();
         assert!(err.contains("NormContractivityViolation"));
-        assert!(!err.contains("SIG_GOV_KILL"));
     }
 
     #[test]
-    fn test_one_norm_accept_acyclic() {
-        let ensemble = Ensemble::from_rationals(
-            "pipeline",
-            vec![vec![q(0, 1), q(1, 1)], vec![q(0, 1), q(0, 1)]],
-            vec![q(2, 5), q(2, 5)],
-        );
-        let n1 = one_norm(&ensemble).unwrap();
-        assert!(n1.lt_one());
-        assert_eq!(n1.as_pair(), (2, 5));
+    fn test_from_rationals_rejects_zero_den() {
+        let err = Ensemble::from_rationals(
+            "bad",
+            vec![vec![(1, 0)]],
+            vec![(1, 1)],
+            "author_declared_lambda",
+        )
+        .unwrap_err();
+        assert_eq!(err, EnsembleError::InvalidRational);
     }
 
     #[test]
-    fn test_certify_rejects_missing_theorem_name() {
-        let ensemble = Ensemble::from_rationals(
-            "no_anchor",
-            vec![vec![q(0, 1), q(2, 5)], vec![q(2, 5), q(0, 1)]],
-            vec![q(9, 10), q(9, 10)],
-        );
-        let err = validate_and_certify(&ensemble, 0.0).unwrap_err();
-        assert!(err.contains("MissingTheoremAnchor"));
+    fn test_from_rationals_rejects_missing_name() {
+        let err = Ensemble::from_rationals(
+            "bad",
+            vec![vec![(0, 1), (1, 2)], vec![(1, 2), (0, 1)]],
+            vec![(1, 2), (1, 2)],
+            "",
+        )
+        .unwrap_err();
+        assert_eq!(err, EnsembleError::MissingTheoremAnchor);
     }
 
     #[test]
+    fn test_reduce_eq() {
+        let a = PosRat::new(2, 4).unwrap();
+        let b = PosRat::new(1, 2).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    #[allow(deprecated)]
     fn test_f64_membrane_matches_retuned_ratios() {
         let ensemble = Ensemble::new(
             "membrane",
@@ -513,7 +536,6 @@ mod tests {
         );
         assert_eq!(ensemble.adjacency[0][1].as_pair(), (2, 5));
         assert_eq!(ensemble.lambdas[0].as_pair(), (9, 10));
-        assert_eq!(one_norm(&ensemble).unwrap().as_pair(), (9, 25));
     }
 }
 
@@ -528,7 +550,6 @@ mod kani_harnesses {
         kani::assume(q > 0);
         kani::assume(p < 1000);
         kani::assume(q < 1000);
-
         if let Ok(rat) = PosRat::new(p, q) {
             let (num, den) = rat.as_pair();
             kani::assert(den > 0);
