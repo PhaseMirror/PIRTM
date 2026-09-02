@@ -39,3 +39,7 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
 3. **Decoupling from ADR-055 Sunset**:
    - The ADR-055 hard sunset (`2026-10-01` / `v1.0.1-mvp`) strictly mandates the total deletion of `Ensemble::new(f64)` in favor of exact rational constructors in $\mathbb{Q}$.
    - Phase 1 `pirtmd` Let-binding extraction operates strictly over `PosRat` in $\mathbb{Q}$ and remains fully valid through and beyond the `2026-10-01` constructor sunset. Phase 2 grammar productions are not a blocker for the ADR-055 `f64` deletion.
+
+4. **Execution Authority vs Reference Specification**:
+   - `pirtm-parser` (`pirtm-app-lexer` + hand-written Pratt `Parser` in `pirtm-parser/src/lib.rs`) is the active production execution authority for application AST construction and MLIR lowering in Phase 1.
+   - `pirtm.pest` is the formal reference specification for packaging envelope rules and is permitted to remain non-executing until the v2.0.0 parser unification milestone.
