@@ -42,6 +42,8 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 | **Lawful Recursion License (ADR-043)** | Ξ-Certification | ✅ Complete | `lean/Foundations/ADR/License.lean` (`lawful_evolution_sound`) + `rust/adr_rust/src/license.rs` (Kani `verify_adr043_*`) + `rust/adr_rust/tests/integration_test.rs` (`test_lawful_evolution_soundness`) + `lean/Foundations/ADR/Test.lean:134` |
 | **ADR Model Invariants (Proofs)** | Immutable / Supersession / Traceability | ✅ Complete | `lean/Foundations/ADR/Proofs.lean` (`accepted_immutable_without_supersession`, `followSupersession_length_bounded`, `traceability`) + `rust/adr_rust` integration test (`test_supersession_cycle_detection`); arithmetic/chain soundness delegated to Rust/Kani (`ENF-006` / `AX-PQ-001`) |
 | **Registry Reconciliation (ADR-044)** | Promotion Rule | ✅ Complete | `lean/Foundations/ADR/Reconciliation.lean` (`promotion_requires_proofs`, zero-sorry) + `rust/adr_rust/src/reconciliation.rs` (Kani `verify_adr044_*` + `test_registry_reconciliation_promotion`) + `lean/Foundations/ADR/Test.lean:143` |
+| **Poseidon2 ZK Soundness (ADR-049)** | Knowledge Soundness | ❌ Defect | Renamed to `receipt_flag_conjunction` in SHA `bc258d49` (no ZK soundness proof; Boolean flag conjunction only) |
+| **ADR Suite 001–050** | Formal Proof Suite | ⚠️ Partial | Grounding in progress; Lean ADR root consolidation under ADR-054 |
 
 ## Legend
 

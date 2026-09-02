@@ -19,7 +19,6 @@ structure Poseidon2Receipt where
 def receipt_flag_conjunction (receipt : Poseidon2Receipt) : Bool :=
   receipt.isValid && receipt.constraintCount <= 5087
 
-/-- `P ∧ Q` given `P` and `Q`. Not knowledge soundness. -/
 theorem receipt_flag_conjunction_of_hyps (receipt : Poseidon2Receipt)
     (h_valid : receipt.isValid = true)
     (h_bound : receipt.constraintCount <= 5087) :
