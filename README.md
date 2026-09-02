@@ -1,206 +1,155 @@
-# PIRTM/MOC Sovereign Core v3.0.0
+# PIRTM/MOC Kernel Language v1.0.0-mvp
 
 [![Sedona Spine CI](https://github.com/PhaseMirror/PIRTM/actions/workflows/sedona_spine_ci.yml/badge.svg)](.github/workflows/sedona_spine_ci.yml)
-[![Governed Toolchain CI](https://github.com/PhaseMirror/PIRTM/actions/workflows/governed_toolchain.yml/badge.svg)](.github/workflows/governed_toolchain.yml)
-[![Lean 4: Axiom-Clean](https://img.shields.io/badge/Lean%204-Mathlib--Free%20Core-brightgreen.svg)](lean/)
-[![Rust Workspace](https://img.shields.io/badge/Rust-1.80%2B%20%7C%2021%20Crates-orange.svg)](rust/)
-[![ADR Formal Verification](https://img.shields.io/badge/ADR%20Proofs-ADR--001..050%20100%25-blue.svg)](docs/adr/)
+[![Lean 4](https://img.shields.io/badge/Lean%204-Mathlib--Free%20Tree-lightgrey.svg)](lean/)
+[![Rust Workspace](https://img.shields.io/badge/Rust-1.80%2B%20%7C%2022%20workspace%20members-orange.svg)](rust/)
+[![ADR Status](https://img.shields.io/badge/ADR%20Proofs-partial%20%7C%20not%20100%25-yellow.svg)](docs/PIRTM-README-Claim-Table.md)
 [![License](https://img.shields.io/badge/License-Prime%20Materia%20Commons-blue.svg)](LICENSE)
 
-**PIRTM/MOC** (Phase Mirror / Multiplicity Object Code) is a formally governed, contractive systems programming language and runtime framework. It integrates a verified mathematical kernel (Sedona Spine, prime-indexed tensor sheaf contractions, Lyapunov drift bounding, Goldilocks prime field arithmetic, Poseidon2 ZK circuits, and multi-node cluster consensus) with general-purpose language syntax lowered to MLIR and LLVM, exposed through CLI, MCP, WASM, Governed HTTP/1.1 server, and a Next.js web application.
+**PIRTM/MOC** (Phase Mirror / Multiplicity Object Code) is an L0 kernel language and runtime under construction in this repository. A session is intended to execute only after transpile-time receipts and link-time spectral small-gain
+
+$$
+\rho\bigl(|A|\,\mathrm{diag}(\lambda)\bigr) < 1
+$$
+
+with each $\lambda_j$ bound to a named theorem or axiom-ledger row. Author-declared floats are manifests, not certificates.
+
+This tree is **not** a general-purpose replacement for Rust, Lean, or C++. Application tokens (`if`, `fn`, `struct`, `let mut`) are not kernel features until a bounded-iteration lowering theorem exists on this tree (ADR-013 original gates; ADR-014 kernel grammar authority is tree-sitter). CHANGELOG records `1.0.0-mvp`. Lake package version is `0.1.0`. There is no v3.0.0-Stable tag on this SHA.
+
+Local ADRs 052–054 remain **Proposed**. This README change does not accept them.
 
 ---
 
-## 📖 Table of Contents
+## Table of Contents
 
-- [Architecture Overview](#-architecture-overview)
-- [Grounded Status & Verified Capabilities](#-grounded-status--verified-capabilities)
-- [Formal ADR Registry (ADR-001 through ADR-050)](#-formal-adr-registry-adr-001-through-adr-050)
-- [Locked Governance Constants](#-locked-governance-constants)
-- [Repository Layout](#-repository-layout)
-- [Installation & Quick Start](#-installation--quick-start)
-- [Testing & Machine Attestation](#-testing--machine-attestation)
-- [Documentation & Release Synthesis](#-documentation--release-synthesis)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Architecture](#architecture)
+- [Grounded status](#grounded-status)
+- [ADR registry (claim discipline)](#adr-registry-claim-discipline)
+- [Governance constants](#governance-constants)
+- [Repository layout](#repository-layout)
+- [Build](#build)
+- [Testing](#testing)
+- [License](#license)
 
 ---
 
-## 🏛️ Architecture Overview
+## Architecture
 
-The PIRTM/MOC architecture enforces structural segregation between formal governance and application-level compute:
+Kernel substrate and application substrate are segregated. Segregation is not proof that both layers are complete.
 
 ```
-                       ┌───────────────────────────────────────────────┐
-                       │             PIRTM Source Program              │
-                       │       `let mut`, `match`, `impl`, `tensor`    │
-                       └───────────────────────┬───────────────────────┘
-                                               │
-                      ┌────────────────────────┴────────────────────────┐
-                      ▼                                                 ▼
-      ┌───────────────────────────────┐                 ┌───────────────────────────────┐
-      │  Kernel & Governance Layer    │                 │   Application Compiler Layer  │
-      │  (tree-sitter-pirtm / CSC)    │                 │    (pirtm-parser / mlir)      │
-      ├───────────────────────────────┤                 ├───────────────────────────────┤
-      │ • Prime Sheaf Contractions    │                 │ • Struct / Enum / Impl AST    │
-      │ • Operator Gain Bounds (λ_i)  │                 │ • Stack Alloca / Store / Load │
-      │ • Contractivity Assertions    │                 │ • Method Dispatch & FFI       │
-      │ • Small-Gain Spectral Radius  │                 │ • scf.if / scf.while / switch │
-      │ • Goldilocks Field (F_p)      │                 │ • Poseidon2 ZK Constraints    │
-      │ • Multi-Node Cluster Consensus│                 │ • QMHES Encrypted Tagging     │
-      └───────────────┬───────────────┘                 └───────────────┬───────────────┘
-                      │                                                 │
-                      │                                                 ▼
-                      │                                 ┌───────────────────────────────┐
-                      │                                 │       MLIR Text Module        │
-                      │                                 │   `examples/json_parser.mlir` │
-                      │                                 └───────────────┬───────────────┘
-                      │                                                 │
-                      └────────────────────────┬────────────────────────┘
-                                               ▼
-                               ┌───────────────────────────────┐
-                               │     Governed Runtime & JIT    │
-                               │  (pirtm-engine / WASM / MCP)  │
-                               ├───────────────────────────────┤
-                               │ • Zeno Damping Attenuation    │
-                               │ • Real-time Drift Check (δ)   │
-                               │ • Governed HTTP/1.1 Server    │
-                               │ • SIG_GOV_KILL Enforcement    │
-                               │ • Next.js Playground / UI     │
-                               └───────────────────────────────┘
+PIRTM source
+        |
+        +-- kernel (tree-sitter / contractivity receipts / small-gain)
+        |
+        +-- application compiler (pirtm-app-lexer is non-executing for L0
+            until Exhibit C lowering exists)
+        |
+        v
+MLIR text (examples/) --> pirtm-engine (spectral.rs present;
+                          lambda vectors still unsigned f64)
 ```
 
+CI that exists on disk: `.github/workflows/sedona_spine_ci.yml` (elan pin + `lake build`). There is no `governed_toolchain.yml` on this tree. Do not badge a missing file.
+
 ---
 
-## 🎯 Grounded Status & Verified Capabilities
+## Grounded status
 
-All core capabilities are physically implemented on-tree and verified by machine-checked test suites:
+Status markers: **Present** = file and some tests exist. **Unclaimed** = README must not say Verified. **Partial** = on-tree with a named defect.
 
-| Subsystem / Feature | Status | Verification & Test Evidence |
+| Subsystem | Status | Evidence / defect |
 |---|---|---|
-| **Lexer & Parser** | ✅ Verified | `pirtm-parser/tests/test_json_parser.rs` (17 top-level constructs) |
-| **Mutable State & Structs** | ✅ Verified | Stack `llvm.alloca`, `llvm.store`, `llvm.load` in `pirtm-mlir` |
-| **Complex Lowering** | ✅ Verified | End-to-end lowering of `examples/json_parser.pirtm` (397-line MLIR) |
-| **WardMonitor Runtime Drift** | ✅ Verified | Formally proven Zeno damping & Lyapunov stability in Lean 4 (ADR-048) |
-| **Small-Gain Spectral Radius ($\rho < 1.0$)** | ✅ Verified | `pirtm-engine::spectral` computing true $\rho(\|A\|\,\mathrm{diag}(\lambda))$ |
-| **Goldilocks Prime Field ($\mathbb{F}_p$)** | ✅ Verified | `pirtm-goldilocks` (13 unit tests, NTT, AVX2/SSE, Kani proof) |
-| **Poseidon2 ZK Circuit Engine** | ✅ Verified | 5,087 circuit constraint ZK receipt generator (ADR-049) |
-| **Governed HTTP/1.1 Server** | ✅ Verified | `GovernedHttpServer` with QMHES tagging, ZK receipts & Sentinel gates |
-| **Multi-Node Cluster Consensus** | ✅ Verified | `DistributedGovernanceCluster` with quorum arbitration (ADR-050) |
-| **Formal ADR Suite (001–050)** | ✅ Verified | Zero `sorry` in Lean 4 (`lake build && lake test` = 50 jobs green) |
-| **Rust / Kani Verification Substrate** | ✅ Verified | 46 `adr_rust` tests + 100% pass rate across 21 workspace crates |
-| **Governed Web UI App** | ✅ Verified | Next.js WASM compilation, MLIR preview, MCP API routes, Recharts dashboard |
+| Lexer and parser | Present | `pirtm-parser` tests exist; dual-lexer quarantine is not ADR-014 close |
+| MLIR lowering examples | Present | `examples/json_parser.pirtm` / `.mlir` on tree |
+| Small-gain engine | Partial | `rust/pirtm-engine/src/spectral.rs` computes $\rho(|A|\mathrm{diag}(\lambda))$; $\lambda$ is author `f64`; receipt has no `theorem_name` |
+| WardMonitor / Lyapunov | Unclaimed | `WardMonitorStability.lean` proves Nat scaling of $V=\rho^2$, not runtime Lyapunov |
+| Poseidon2 ZK soundness | Unclaimed | `Poseidon2Soundness.lean` is `isValid && count <= 5087`; tautology pending ADR-053 |
+| Multi-node cluster consensus | Unclaimed | `pirtm-orchestration` crate exists; quorum soundness not an engineering predicate |
+| Formal ADR suite 001–050 | Unclaimed | Documents and Lean modules exist; not 100 percent; job counts in docs disagree (7 / 18 / 38 / 50) |
+| Rust workspace | Partial | `rust/Cargo.toml` lists 22 members; `pirtm-clinical` and `pirtm-moc` are on disk and not members |
+| Kani substrate | Partial | Harnesses are `#[cfg(kani)]`; `cargo test` does not run them (ledger ENF-004) |
+| Governed web UI / WASM / playground | Unclaimed | Out of ADR-013 horizon until kernel CI includes `cargo test --workspace` |
+| Lean `sorry` in `lean/` | Partial | `grep sorry lean/` claimed empty; production FFI still has axioms in `pirtm-stdlib/Lean` and `pirtm-clinical` |
+
+Canonical claim matrix: `docs/PIRTM-README-Claim-Table.md`. Where that file still says Complete for an Unclaimed row above, the claim table is stale. Do not treat either file as Layer B.
 
 ---
 
-## 📜 Formal ADR Registry (ADR-001 through ADR-050)
+## ADR registry (claim discipline)
 
-The framework is governed by 50 machine-checked Architecture Decision Records:
-- **ADR-001..030**: Core project setup, grammar authority, toolchain locking, metric unification, and zero-sorry core.
-- **ADR-031..033**: Foundry component integration, prime-recursive foundations, and QMHES post-quantum hybrid encryption.
-- **ADR-034**: Prime-Indexed Dialectical Semantics & Contestation Fields.
-- **ADR-035**: Prime-Encoded Quantum States & Subspace Error Detection.
-- **ADR-036**: Prime-Structured Tensor-Network Autoencoder (TN-AE).
-- **ADR-037**: Prime-Indexed Phase-Dissonance Functionals.
-- **ADR-038**: Phase Mirror Governance Manifold & Fail-Closed Control.
-- **ADR-039**: Cognitive Economy & Ethical Projection Substrate.
-- **ADR-040**: EchoBraid Quantum Feedback & Recursive Spectrum Coherence.
-- **ADR-041**: Multiplicity Floer Differential Operator.
-- **ADR-042**: Prime-Constitutional Order & Conscious Sovereignty Layer (CSL).
-- **ADR-043**: Lawful Recursion License ($\Xi$-License v1.0).
-- **ADR-044**: Phase Mirror Comprehensive ADR Registry Reconciliation.
-- **ADR-045**: UI/UX Integration & Governed Toolchain Web Application.
-- **ADR-046**: The Goldilocks Prime Field Backend for ZK Circuit Acceleration.
-- **ADR-047**: Sedona Spine & RSL v5 Sentinel Integration.
-- **ADR-048**: Formal WardMonitor Drift Correction & Lyapunov Stability.
-- **ADR-049**: Poseidon2 ZK-SNARK Circuit Proof Acceleration.
-- **ADR-050**: Multi-Node Distributed Governance Consensus.
+Markdown ADR files through ADR-050 exist under `docs/adr/`. Existence is not machine-checked soundness of the title.
+
+Do not list ADR-049 or ADR-050 as verified soundness. Do not list ADR-001 through ADR-050 as a closed suite.
+
+Kernel scope lock remains the original ADR-013 four gates on this repository only. The shortened `docs/adr/completed/ADR-013-PIRTM-MOC-Language-Scope.md` is not authority.
+
+Proposed local artifacts (not on this commit, not Accepted):
+
+- ADR-052 Reject v3 false completeness
+- ADR-053 Theorem name equals theorem content
+- ADR-054 Single authority trees
 
 ---
 
-## 🔒 Locked Governance Constants (ADR-PML-057)
+## Governance constants
 
-Runtime governance parameters derive from the contraction decay modulus $\lambda = 0.97$:
-
-| Constant | Value | Role |
-|---|---|---|
-| $\lambda_{\text{base}}$ | `0.97` | Primary contraction decay modulus |
-| $\Delta_{\max}$ | `0.03` | Universal per-step drift rejection threshold ($1 - \lambda_{\text{base}}$) |
-| $\tau$ | `1.03` | Maximum Lyapunov growth ceiling |
-| $\rho_{\text{warn}}$ | `0.85` | Amber boundary: Zeno controller $\kappa(t) = \kappa_0 e^{-\alpha t}$ |
-| $S_{\text{critical}}$ | `0.95` | Red boundary: Critical entropy buffer zone |
-| $\rho_{\text{halt}}$ | `1.00` | Non-contractive boundary limit |
-| `SIG_GOV_KILL` | `1.05` | Hard phase transition threshold |
-| $p_{\text{goldilocks}}$ | `18446744069414584321` | Goldilocks prime modulo $2^{64} - 2^{32} + 1$ |
-| $C_{\text{poseidon2}}$ | `5087` | Poseidon2 ZK circuit constraint bound |
+Declared runtime numbers (`lambda_base = 0.97`, `C_poseidon2 = 5087`, and others in prior README text) are **policy literals**. They are not Lean theorems. `5087` in `verifyPoseidon2Receipt` is the same class of literal.
 
 ---
 
-## 📂 Repository Layout
+## Repository layout
 
 ```
 PIRTM/
-├── CONTRIBUTING.md                    # Open-source contribution guidelines
-├── README.md                          # Repository documentation
-├── lakefile.lean / lean-toolchain     # Lean 4 pinned build environment
+├── README.md                         # this file; mvp claim surface
+├── CHANGELOG.md                      # 1.0.0-mvp
+├── lakefile.lean / lean-toolchain    # Lake package version 0.1.0
 ├── .github/workflows/
-│   ├── sedona_spine_ci.yml            # Zero-tolerance CI gate
-│   └── governed_toolchain.yml         # Lean 4 + Cargo + Next.js build pipeline
+│   └── sedona_spine_ci.yml           # only workflow on disk
 ├── docs/
-│   ├── adr/                           # Markdown ADR specifications (001–050) & registry.json
-│   ├── PIRTM_Paper.tex                # Academic paper LaTeX source (ADR 001–050)
-│   ├── PIRTM_v3_Release_Synthesis.md  # Technical release synthesis
-│   └── PIRTM-axiom-ledger.md          # Proof debt & enforcement ledger
+│   ├── adr/
+│   ├── PIRTM-README-Claim-Table.md
+│   └── PIRTM-axiom-ledger.md
 ├── lean/
-│   └── Foundations/ADR/               # Canonical Lean 4 proof suite (ADR-001..050)
-├── rust/
-│   ├── adr_rust/                      # Kani proof harnesses & Rust models
-│   ├── pirtm-compiler/                # MLIR & bytecode compiler engine
-│   ├── pirtm-engine/                  # Sedona Spine engine & Governed HTTP Server
-│   ├── pirtm-goldilocks/              # Goldilocks prime field arithmetic, NTTs & Poseidon2 ZK
-│   ├── pirtm-orchestration/           # Multi-node Sentinel cluster consensus orchestrator
-│   ├── pirtm-mcp/                     # Model Context Protocol governance server
-│   └── pirtm-web-sdk/                 # Lean/Rust WASM component builders
-├── pirtm-governed-toolchain/          # Next.js 15 Governed Web App & Playground
-└── scripts/release_v3.sh              # Automated release verification script
+│   ├── ADR/                          # one of two ADR trees; ADR-054 unresolved
+│   ├── Foundations/ADR/              # the other ADR tree
+│   └── prime_tensors/
+├── rust/                             # 22 workspace members in Cargo.toml
+├── pirtm-governed-toolchain/         # present; not a verified production UI
+└── examples/
 ```
 
 ---
 
-## 🚀 Installation & Quick Start
+## Build
 
 ### Prerequisites
-- **Lean 4**: `v4.33.0-rc2` (via `elan`)
-- **Rust**: `1.80+`
-- **Node.js**: `20+`
 
-### Build Commands
+- Lean 4 `v4.33.0-rc2` via `elan` (must match `lean-toolchain`)
+- Rust 1.80+
+
+### Commands that exist
 
 ```bash
-# 1. Run Lean 4 formal verification suite
 lake build
-lake test
-lake run generateDocs
-
-# 2. Build & test all 21 Rust workspace crates
-cd rust
-cargo test --workspace
-
-# 3. Launch Next.js Governed Toolchain Web App
-cd ../pirtm-governed-toolchain
-npm run dev
+cd rust && cargo test --workspace
 ```
 
----
+`lake test` and `cargo kani` are optional until CI runs them. Do not cite them as green on this SHA without a log.
 
-## 🧪 Testing & Machine Attestation
-
-- **Lean 4 Core**: `lake test` runs 18 theorem test cases across all 50 ADR modules (50 jobs built clean).
-- **Cargo Workspace**: `cargo test --workspace` passes 100% of unit tests across 21 crates.
-- **Model Checking**: `cargo kani` verifies bounded model checking harnesses in `adr_rust` (46 tests).
+Playground `npm run dev` is not a kernel gate.
 
 ---
 
-## 📄 License
+## Testing
 
-Licensed under the **Prime Materia Open Commons License v1.0** and **Lawful Recursion License ($\Xi$-License v1.0)**.
+On-disk CI job: toolchain pin plus `lake build`.
+
+Not attested by that job: `cargo test --workspace`, `cargo kani`, Next.js, Poseidon2 knowledge soundness, cluster quorum, 50 ADR proofs.
+
+---
+
+## License
+
+Licensed under the Prime Materia Open Commons License v1.0 and the Lawful Recursion License (Xi-License v1.0). See `LICENSE` and `Ξ-LICENSE`.
