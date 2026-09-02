@@ -1,5 +1,5 @@
 use crate::manifest::EnsembleManifest;
-use pirtm_engine::spectral::{self, Ensemble};
+use pirtm_engine::spectral::{self, lambda_pairs_from_f64, matrix_pairs_from_f64, Ensemble};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -18,11 +18,11 @@ pub enum LinkerError {
         ensemble: String,
         norm_1: (u64, u64),
     },
+    InvalidRational {
+        ensemble: String,
+    },
 }
 
-/// The SpectralGovernor oversees the linking of multiple ensembles.
-/// It constructs the interconnection matrix A and gains λ,
-/// and certifies ||G||_1 < 1 in Q via validate_and_certify.
 pub struct SpectralGovernor {
     registry: HashMap<String, EnsembleManifest>,
 }
@@ -59,14 +59,12 @@ impl SpectralGovernor {
 
         for (i, manifest) in nodes.iter().enumerate() {
             lambdas[i] = manifest.governance.spectral_radius;
-
             if let Some(deps) = &manifest.dependencies {
                 for (dep_name, dep_meta) in deps {
                     let dep_manifest = self
                         .registry
                         .get(dep_name)
                         .ok_or_else(|| LinkerError::DependencyNotFound(dep_name.to_string()))?;
-
                     if let Some(expected_prime) = dep_meta.prime_index {
                         if expected_prime != dep_manifest.ensemble.prime_index {
                             return Err(LinkerError::IncompatiblePrime(
@@ -75,7 +73,6 @@ impl SpectralGovernor {
                             ));
                         }
                     }
-
                     if let Some(&j) = node_indices.get(dep_name) {
                         adjacency[i][j] = dep_meta.spectral_max;
                     }
@@ -83,8 +80,33 @@ impl SpectralGovernor {
             }
         }
 
-        let ensemble = Ensemble::new(root_name, adjacency, lambdas)
-            .with_theorem_name(root_manifest.governance.theorem_name.clone());
+        let adj_pairs = matrix_pairs_from_f64(&adjacency).map_err(|_| LinkerError::InvalidRational {
+            ensemble: root_name.to_string(),
+        })?;
+        let lam_pairs = lambda_pairs_from_f64(&lambdas).map_err(|_| LinkerError::InvalidRational {
+            ensemble: root_name.to_string(),
+        })?;
+        let ensemble = Ensemble::from_rationals(
+            root_name,
+            adj_pairs,
+            lam_pairs,
+            root_manifest.governance.theorem_name.clone(),
+        )
+        .map_err(|e| match e {
+            pirtm_engine::EnsembleError::MissingTheoremAnchor => LinkerError::MissingTheoremAnchor {
+                ensemble: root_name.to_string(),
+            },
+            pirtm_engine::EnsembleError::NormContractivityViolation { norm_1 } => {
+                LinkerError::NormContractivityViolation {
+                    ensemble: root_name.to_string(),
+                    norm_1,
+                }
+            }
+            _ => LinkerError::InvalidRational {
+                ensemble: root_name.to_string(),
+            },
+        })?;
+
         match spectral::validate_and_certify(&ensemble, 0.0) {
             Ok(receipt) => {
                 if !receipt.is_norm_contractive {
@@ -95,11 +117,9 @@ impl SpectralGovernor {
                 }
                 Ok(())
             }
-            Err(e) if e.contains("MissingTheoremAnchor") => {
-                Err(LinkerError::MissingTheoremAnchor {
-                    ensemble: root_name.to_string(),
-                })
-            }
+            Err(e) if e.contains("MissingTheoremAnchor") => Err(LinkerError::MissingTheoremAnchor {
+                ensemble: root_name.to_string(),
+            }),
             Err(e) if e.contains("NormContractivityViolation") => {
                 Err(LinkerError::NormContractivityViolation {
                     ensemble: root_name.to_string(),
@@ -123,11 +143,9 @@ impl SpectralGovernor {
         if node_indices.contains_key(&manifest.ensemble.name) {
             return Ok(());
         }
-
         let idx = nodes.len();
         node_indices.insert(manifest.ensemble.name.clone(), idx);
         nodes.push(manifest);
-
         if let Some(deps) = &manifest.dependencies {
             for (dep_name, _) in deps {
                 let dep_manifest = self
@@ -137,7 +155,6 @@ impl SpectralGovernor {
                 self.collect_dependencies(dep_manifest, nodes, node_indices)?;
             }
         }
-
         Ok(())
     }
 }
@@ -160,7 +177,6 @@ mod tests {
     #[test]
     fn test_linker_composition_success() {
         let mut governor = SpectralGovernor::new();
-
         let mut deps = HashMap::new();
         deps.insert(
             "tensor-ops".to_string(),
@@ -170,7 +186,6 @@ mod tests {
                 prime_index: Some(17),
             },
         );
-
         let main = EnsembleManifest {
             ensemble: EnsembleMeta {
                 name: "main-app".to_string(),
@@ -182,7 +197,6 @@ mod tests {
             governance: gov(0.5, "hash1", "author_declared_lambda"),
             dependencies: Some(deps),
         };
-
         let dep = EnsembleManifest {
             ensemble: EnsembleMeta {
                 name: "tensor-ops".to_string(),
@@ -194,17 +208,14 @@ mod tests {
             governance: gov(0.2, "hash2", "author_declared_lambda"),
             dependencies: None,
         };
-
         governor.register(main);
         governor.register(dep);
-
         assert!(governor.link("main-app").is_ok());
     }
 
     #[test]
     fn test_linker_rejects_missing_theorem_name() {
         let mut governor = SpectralGovernor::new();
-
         let main = EnsembleManifest {
             ensemble: EnsembleMeta {
                 name: "main-app".to_string(),
@@ -217,7 +228,6 @@ mod tests {
             dependencies: None,
         };
         governor.register(main);
-
         match governor.link("main-app") {
             Err(LinkerError::MissingTheoremAnchor { ensemble }) => {
                 assert_eq!(ensemble, "main-app");
@@ -229,7 +239,6 @@ mod tests {
     #[test]
     fn test_linker_composition_failure() {
         let mut governor = SpectralGovernor::new();
-
         let mut deps_a = HashMap::new();
         deps_a.insert(
             "node_b".to_string(),
@@ -239,7 +248,6 @@ mod tests {
                 prime_index: None,
             },
         );
-
         let mut deps_b = HashMap::new();
         deps_b.insert(
             "node_a".to_string(),
@@ -249,7 +257,6 @@ mod tests {
                 prime_index: None,
             },
         );
-
         let node_a = EnsembleManifest {
             ensemble: EnsembleMeta {
                 name: "node_a".to_string(),
@@ -261,7 +268,6 @@ mod tests {
             governance: gov(0.9, "hash_a", "author_declared_lambda"),
             dependencies: Some(deps_a),
         };
-
         let node_b = EnsembleManifest {
             ensemble: EnsembleMeta {
                 name: "node_b".to_string(),
@@ -273,10 +279,8 @@ mod tests {
             governance: gov(0.9, "hash_b", "author_declared_lambda"),
             dependencies: Some(deps_b),
         };
-
         governor.register(node_a);
         governor.register(node_b);
-
         assert!(governor.link("node_a").is_err());
     }
 }
