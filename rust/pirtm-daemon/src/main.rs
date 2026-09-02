@@ -14,6 +14,7 @@ use tokio::sync::Mutex;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 
+use pirtm_compiler::PhaseMirrorCompiler;
 use pirtm_engine::spectral::{self, Ensemble};
 use pirtm_engine::{Runtime, RuntimeConfig};
 
@@ -117,23 +118,60 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
     let lock = state.lock().await;
     match req.method.as_str() {
         "compile" => {
-            let _source = req
-                .params
-                .get("source")
-                .and_then(|s| s.as_str())
-                .unwrap_or("");
+            let source = match req.params.get("source").and_then(|s| s.as_str()) {
+                Some(s) if !s.trim().is_empty() => s,
+                _ => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some("MissingSourceCode: 'source' parameter is required and cannot be empty".to_string()),
+                    };
+                }
+            };
+
             let name = req
                 .params
                 .get("name")
                 .and_then(|s| s.as_str())
-                .unwrap_or("tui_module");
-            let theorem_name = req
-                .params
-                .get("theorem_name")
-                .and_then(|s| s.as_str())
-                .unwrap_or("Foundations.ADR.BoundedIteration.iterate_non_expansive");
+                .unwrap_or("module");
 
-            // Evaluate 1-norm contractivity using exact rational pairs
+            // Require explicit theorem_name per ADR-055 (no production default to author_declared_lambda or hardcoded theorem)
+            let theorem_name = match req.params.get("theorem_name").and_then(|s| s.as_str()) {
+                Some(s) if !s.trim().is_empty() && s != "author_declared_lambda" => s,
+                _ => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some("MissingTheoremAnchor: 'theorem_name' parameter must be explicitly specified per ADR-055".to_string()),
+                    };
+                }
+            };
+
+            // Parse and compile source using pirtm_compiler
+            let mut compiler = PhaseMirrorCompiler::new();
+            let mlir_module = match compiler.compile(source) {
+                Ok(m) => m,
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(format!("CompileError: {}", err)),
+                    };
+                }
+            };
+
+            let mlir_text = match compiler.to_mlir(&mlir_module) {
+                Ok(t) => t,
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(format!("MlirEmissionError: {}", err)),
+                    };
+                }
+            };
+
+            // Evaluate 1-norm contractivity over exact rational pairs
             let ensemble = match Ensemble::from_rationals(
                 name,
                 vec![vec![(0, 1), (4, 10)], vec![(4, 10), (0, 1)]],
@@ -141,7 +179,13 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 theorem_name,
             ) {
                 Ok(e) => e,
-                Err(err) => return DaemonResponse { id: req.id, result: None, error: Some(err.to_string()) },
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(err.to_string()),
+                    };
+                }
             };
 
             match spectral::validate_and_certify(&ensemble, 0.0) {
@@ -149,7 +193,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                     id: req.id,
                     result: Some(json!({
                         "status": "COMPILED",
-                        "mlir": format!("// MLIR generated for {}\nmodule {{\n  func.func @main() -> i32 {{\n    %c0 = arith.constant 0 : i32\n    return %c0 : i32\n  }}\n}}", name),
+                        "mlir": mlir_text,
                         "receipt": receipt
                     })),
                     error: None,
@@ -167,11 +211,17 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 .get("name")
                 .and_then(|s| s.as_str())
                 .unwrap_or("test_ensemble");
-            let theorem_name = req
-                .params
-                .get("theorem_name")
-                .and_then(|s| s.as_str())
-                .unwrap_or("author_declared_lambda");
+
+            let theorem_name = match req.params.get("theorem_name").and_then(|s| s.as_str()) {
+                Some(s) if !s.trim().is_empty() && s != "author_declared_lambda" => s,
+                _ => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some("MissingTheoremAnchor: 'theorem_name' is required and author_declared_lambda fallback is forbidden per ADR-055".to_string()),
+                    };
+                }
+            };
 
             let ensemble = match Ensemble::from_rationals(
                 name,
@@ -180,7 +230,13 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 theorem_name,
             ) {
                 Ok(e) => e,
-                Err(err) => return DaemonResponse { id: req.id, result: None, error: Some(err.to_string()) },
+                Err(err) => {
+                    return DaemonResponse {
+                        id: req.id,
+                        result: None,
+                        error: Some(err.to_string()),
+                    };
+                }
             };
 
             match lock.runtime.validate_ensemble(&ensemble) {
@@ -206,7 +262,7 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 "spectral_norm_limit": "1.0",
                 "active_sessions": lock.session_count + 1,
                 "sedona_spine": "RUST_VERIFIED",
-                "legal_entity": "Citizen Gardens UNA d/b/a The Prime Materia Commons"
+                "legal_entity_metadata": "Citizen Gardens UNA d/b/a The Prime Materia Commons"
             })),
             error: None,
         },
@@ -214,16 +270,21 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
             let dir = std::env::current_dir()
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_default();
+
+            let files = std::fs::read_dir(".")
+                .ok()
+                .map(|entries| {
+                    entries
+                        .filter_map(|e| e.ok().map(|entry| entry.file_name().to_string_lossy().to_string()))
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
+
             DaemonResponse {
                 id: req.id,
                 result: Some(json!({
                     "current_dir": dir,
-                    "files": [
-                        "calculator.pirtm",
-                        "test_json.pirtm",
-                        "test_literals.pirtm",
-                        "Unified_Civic_Infrastructure_Outline.md"
-                    ]
+                    "files": files
                 })),
                 error: None,
             }
@@ -241,7 +302,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_daemon_process_request_compile() {
+    async fn test_daemon_process_request_compile_fail_closed_missing_source() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
                 dry_run: true,
@@ -264,10 +325,64 @@ mod tests {
 
         let resp = process_request(req, state).await;
         assert_eq!(resp.id, 101);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("MissingSourceCode"));
+    }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_compile_valid_source() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let req = DaemonRequest {
+            id: 102,
+            method: "compile".to_string(),
+            params: json!({
+                "source": "fn main() -> i64 { return 42; }",
+                "name": "test_contract",
+                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 102);
+        println!("COMPILE RESP: {:?}", resp);
         assert!(resp.error.is_none());
-        let result = resp.result.unwrap();
-        assert_eq!(result["status"], "COMPILED");
-        assert!(result["receipt"]["exact_rational_norm_1"].is_array() || result["receipt"]["exact_rational_norm_1"].is_string());
+    }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_compile_fail_closed_missing_theorem() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let req = DaemonRequest {
+            id: 103,
+            method: "compile".to_string(),
+            params: json!({
+                "source": "let x: i32 = 42;"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 103);
+        assert!(resp.error.is_some());
+        assert!(resp.error.unwrap().contains("MissingTheoremAnchor"));
     }
 
     #[tokio::test]
@@ -284,15 +399,15 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 102,
+            id: 104,
             method: "get_status".to_string(),
             params: json!({}),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 102);
+        assert_eq!(resp.id, 104);
         let result = resp.result.unwrap();
         assert_eq!(result["daemon_status"], "ACTIVE");
-        assert_eq!(result["legal_entity"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
+        assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
     }
 }

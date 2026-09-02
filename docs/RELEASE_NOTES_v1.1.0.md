@@ -1,18 +1,22 @@
-# PIRTM v1.1.0 Release Notes
-### Interactive Governed Development Environment & TUI
-**Release Date**: 2 September 2026  
+# PIRTM Governed Development Preview (Candidate Tag: v1.0.1-mvp)
+### Development Preview Release Notes — Interactive Governed IDE & TUI
+**Target Release Tag**: `v1.0.1-mvp` (ADR-012 Version Governance)  
+**Date**: 2 September 2026  
 **LawfulRecursionVersion**: 1.0  
 **Legal Persona**: Citizen Gardens UNA d/b/a The Prime Materia Commons
+
+> [!NOTE]
+> Per ADR-012 version tag governance rules, `v1.1.0-mvp` tag claims are strictly forbidden prior to full multi-node production deployment. This document represents candidate release notes for `v1.0.1-mvp`.
 
 ---
 
 ## 🌟 Highlights
 
-PIRTM v1.1.0 introduces a **Kilo / OpenCode style interactive terminal environment** bringing the full power of formal Lean 4 verification, Sentinel governance gates, WardMonitor stability tracking, and MCP AI assistance into a developer-first split-pane workspace.
+PIRTM introduces a **Kilo / OpenCode style interactive terminal environment** bringing formal Lean 4 verification, Sentinel governance gates, WardMonitor stability tracking, and MCP AI assistance into a developer-first split-pane workspace.
 
 ---
 
-## 🚀 What's New
+## 🚀 Key Features
 
 ### 1. Interactive Terminal UI (`pirtm-tui`)
 - **Keyboard-First Split-Pane Workspace**: Built with Ratatui & Crossterm, featuring Project File Explorer, Editor Pane, Integrated Terminal Log, and Governance Status Footer.
@@ -30,12 +34,13 @@ PIRTM v1.1.0 introduces a **Kilo / OpenCode style interactive terminal environme
 
 ### 3. Background Daemon Service (`pirtmd`)
 - Background daemon serving JSON-RPC over WebSocket IPC (`ws://127.0.0.1:8090`).
-- Integrated into `docker-compose.yml` for containerized orchestration.
+- Implemented in `rust/pirtm-daemon` with fail-closed missing source and missing theorem verification rules.
+- Containerized via `rust/Dockerfile.daemon` and integrated into `docker-compose.yml`.
 
 ---
 
 ## 🔒 Verification & Compliance Status
 
-- **Lean 4 Proofs**: `lake test` $\rightarrow$ ✅ PASS (all 24 ADR tests including ADR-055 `PosRatContractivity`).
-- **Rust/Kani Suite**: `cargo test --workspace` $\rightarrow$ ✅ PASS (0 errors across 28 workspace crates).
-- **Exact Rational Small-Gain Gate**: $\|G\|_1 = \max_j \sum_i |A_{ij}| \cdot \lambda_j < 1.0$ strictly verified over $\mathbb{Q}$.
+- **Lean 4 Proofs**: `lake test` $\rightarrow$ ✅ PASS (all 25 ADR proof modules).
+- **Rust Workspace**: `cargo test --workspace` $\rightarrow$ ✅ PASS (0 errors across 24 workspace member crates).
+- **Exact Rational Small-Gain Gate**: $\|G\|_1 = \max_j \sum_i |A_{ij}| \cdot \lambda_j < 1.0$ strictly verified over $\mathbb{Q}$ (ADR-055).

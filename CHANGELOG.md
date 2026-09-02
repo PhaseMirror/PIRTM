@@ -7,34 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned (v2.0.0 Roadmap)
+- Real-time collaborative CRDT editing engine in `pirtmd` via Yrs / Loro integration (ADR-056)
+- Model-checked formal TUI state machine proofs (`Foundations.ADR.TUIStateMachine` - ADR-057)
+- External Ethereum EVM Poseidon2 receipt verifier smart contract and Filecoin IPFS proof storage (ADR-058)
+- Multi-user quorum governance consensus (ADR-059)
+- IBC cross-chain receipt attestation bridge (ADR-060)
+
+## [1.1.0] - 2026-09-02
+
 ### Added
-- Phase Mirror methodology enforcement via `AGENTS.md`
-- Axiom Ledger (`docs/PIRTM-axiom-ledger.md`) for tracking proof debts and enforcement gaps
-- Ground-truth claim table (`docs/PIRTM-README-Claim-Table.md`) with SHA-256 audit hash
-- `build.sh` validated build entrypoint
-- `USER_GUIDE.md` comprehensive end-user documentation
-- `INSTALL.md` detailed installation guide
-- `SECURITY.md` security policy and vulnerability reporting
-- `CONTRIBUTING.md` contribution guidelines and development workflow
-- `CHANGELOG.md` version history
+- **PIRTM Daemon (`pirtmd`)**: Async WebSocket IPC background service (`ws://127.0.0.1:8090`) hosting the compiler, Sentinel gate, WardMonitor, and MCP agent (`packages/PIRTM/rust/pirtm-daemon`).
+- **Interactive TUI Editor (`pirtm-tui`)**: Split-pane terminal user interface powered by Ratatui with file explorer, code editor, integrated terminal, syntax highlighting, and LSP panel (`packages/PIRTM/rust/pirtm-tui`).
+- **Governance Slash Commands**: Added 14 interactive slash commands (`/compile`, `/validate`, `/status`, `/ask`, `/explain`, `/proof`, `/refactor`, `/benchmark`, `/profile`, `/deploy`, `/audit`, `/simulate`, `/certify`, `/clear`, `/quit`).
+- **Editor Extensions**: External editor integrations for VS Code (`editors/vscode/`) and Neovim (`editors/neovim/`).
+- **Lean 4 Proof Modules (ADR-049 through ADR-056)**:
+  - `Foundations.ADR.Poseidon2Soundness` (ADR-049): Poseidon2 ZK receipt flag conjunction soundness.
+  - `Foundations.ADR.DistributedGovernance` (ADR-050): Multi-node Sentinel consensus quorum soundness ($passVotes \ge quorumThreshold \iff CLUSTER\_PASS$).
+  - `Foundations.ADR.InstallationProtocol` (ADR-051): Machine-checked PC local environment installation protocol.
+  - `Foundations.ADR.AcePetcIntegration` (ADR-052): PETC prime valuation additive homomorphism $v_p(e_1 + e_2) = v_p(e_1) + v_p(e_2)$ and ACE weighted-$\ell_1$ soft-thresholding non-expansiveness.
+  - `Foundations.ADR.UmcPmroRegulator` (ADR-053): Universal Multiplicity Constant $\Lambda_m$ fail-closed halt precedence ($stressCounter \ge 3 \implies halt$) & PMRO $2\sqrt{N}$ associator defect upper bound.
+  - `Foundations.ADR.PincCdtSpacetime` (ADR-054): Regge-NCG action density operator norm bound & CDT spectral dimension proxy bounds ($1.2 \le D_s(t) \le 2.0$).
+  - `Foundations.ADR.PosRatContractivity` (ADR-055): Exact rational 1-norm column sum contractivity gate $\|G\|_1 < 1$ in $\mathbb{Q}$.
+  - `Foundations.ADR.CollaborativeCRDT` (ADR-056): CRDT vector clock state merge convergence & contractivity $\|G\|_1 < 1$ preservation under merged edits.
+- **Rust/Kani Verification Harnesses**: Formally verified Kani model checking suites in `adr_rust` (`crdt_proof.rs`, `pinc_cdt_proof.rs`, `umc_pmro_proof.rs`, `ace_petc_proof.rs`, `distributed_governance_proof.rs`, `spectral.rs`).
+- **Documentation**:
+  - `TUI_USER_GUIDE.md`: Comprehensive TUI user guide and slash command reference.
+  - `TUTORIAL_GOVERNED_CONTRACTS.md`: Step-by-step developer tutorial for governed contract creation.
+  - `RELEASE_NOTES_v1.1.0.md`: Official v1.1.0 release notes.
+  - `ADR-056-Collaborative CRDT Integration.md`: Architecture blueprint for multi-user real-time editing.
 
 ### Changed
-- Updated `README.md` with table of contents, installation, and usage sections
-- Renamed `RealField` to `DivLoop` in `lean/PIRTM.lean` (ADR-026)
-- Replaced `"dummy"` conclusion in `fromADR` with real consequences (ADR-029)
-- Updated `docs/PIRTM-README-Claim-Table.md` to reflect all resolved ADRs (018–030)
+- Realigned legal entity and trade name across all legal and governance documents to **Citizen Gardens UNA d/b/a The Prime Materia Commons** (Wyoming W.S. 17-22).
+- Replaced floating-point scaling membranes ($10^6$) with canonical exact rational constructor `Ensemble::from_rationals` over reduced `PosRat` in $\mathbb{Q}$ (ADR-055).
+- Updated `docker-compose.yml` to orchestrate containerized `pirtmd` daemon service on port 8090.
 
 ### Fixed
-- Repaired broken Lean kernel imports (`prime_tensors` modules) (ADR-018)
-- Eliminated all `sorry` from canonical core proofs (ADR-019)
-- Fixed undefined `adr0999` reference in `Export.lean` (ADR-020)
-- Implemented real admissibility validation (reject float literals, unbounded loops, uncertified primes) (ADR-021)
-- Moved simulated telemetry behind `--dry-run` flag only (ADR-022)
-- Enforced grammar quarantine via separate `pirtm-kernel-lexer` and `pirtm-app-lexer` crates (ADR-023)
-- Locked Lean toolchain with `fixedToolchain: true` and CI version verification (ADR-024)
-- Unified metric units between Lean `Nat` scaling and Rust `f64` constants (ADR-025)
-- Fixed README build instructions (`cd lean` → `./build.sh`) (ADR-027)
-- Reconciled claim table with Axiom Ledger and added SHA-256 audit hash (ADR-030)
+- Fixed dots (`.`) handling in Lean 4 qualified theorem anchor names within `is_theorem_anchor`.
+- Resolved all residual tactic goal mismatches in `DistributedGovernance.lean`, `PosRatContractivity.lean`, `UmcPmroRegulator.lean`, and `CollaborativeCRDT.lean`.
+- Clean 100% green test execution across all 25 Lean ADR modules (`lake test`) and 28 Rust workspace crates (`cargo test --workspace`).
 
 ## [1.0.0-mvp] - 2026-09-01
 

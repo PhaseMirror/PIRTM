@@ -1,0 +1,34 @@
+# Multi-stage Dockerfile for pirtmd background daemon
+FROM rust:1.80-slim as builder
+
+WORKDIR /usr/src/pirtm
+
+# Copy Cargo workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY pirtm-daemon ./pirtm-daemon
+COPY pirtm-compiler ./pirtm-compiler
+COPY pirtm-engine ./pirtm-engine
+COPY pirtm-mcp ./pirtm-mcp
+COPY pirtm-monitor ./pirtm-monitor
+COPY pirtm-parser ./pirtm-parser
+COPY pirtm-mlir ./pirtm-mlir
+COPY pirtm-stdlib ./pirtm-stdlib
+COPY pirtm-invariants ./pirtm-invariants
+COPY adr_rust ./adr_rust
+COPY telemetry_recorder ./telemetry_recorder
+COPY goldilocks ./goldilocks
+
+RUN cargo build --release --package pirtm-daemon --bin pirtmd
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/src/pirtm/target/release/pirtmd /usr/local/bin/pirtmd
+
+EXPOSE 8090
+
+ENV RUST_LOG=info
+ENV DAEMON_PORT=8090
+ENV PIRTM_SPECTRAL_BOUND=1.0
+
+CMD ["pirtmd", "serve"]
