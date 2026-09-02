@@ -2,8 +2,6 @@ use pirtm_engine::governance::Sentinel;
 use pirtm_engine::spectral::Ensemble;
 use pirtm_monitor::{ManifoldState, ManifoldStateProvider, MonitorConfig};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ConsensusVote {
@@ -58,10 +56,8 @@ impl<P: ManifoldStateProvider> DistributedGovernanceCluster<P> {
         let mut kill_votes = 0;
         let mut first_receipt = None;
         let mut kill_reason = String::new();
-
         for node in &mut self.nodes {
-            let vote = node.evaluate_local(ensemble);
-            match vote {
+            match node.evaluate_local(ensemble) {
                 ConsensusVote::Pass(receipt) => {
                     pass_votes += 1;
                     if first_receipt.is_none() {
@@ -74,7 +70,6 @@ impl<P: ManifoldStateProvider> DistributedGovernanceCluster<P> {
                 }
             }
         }
-
         let quorum_reached = pass_votes >= self.quorum_threshold;
         if quorum_reached {
             ConsensusResult {
@@ -105,34 +100,30 @@ mod tests {
 
     #[test]
     fn test_distributed_governance_cluster_consensus() {
-        let ensemble = Ensemble::new(
+        let ensemble = Ensemble::from_rationals(
             "cluster_ensemble",
-            vec![vec![0.0, 0.3], vec![0.3, 0.0]],
-            vec![0.9, 0.9],
+            vec![vec![(0, 1), (3, 10)], vec![(3, 10), (0, 1)]],
+            vec![(9, 10), (9, 10)],
+            "author_declared_lambda",
         )
-        .with_theorem_name("author_declared_lambda");
-
+        .unwrap();
         let node1 = DistributedSentinelNode::new(
             "node_1",
             MockStateProvider::new(vec![ManifoldState { rho: 0.40, delta: 1e-5, lambda_l_product: 0.5, timestamp: 1000 }]),
             MonitorConfig::default(),
         );
-
         let node2 = DistributedSentinelNode::new(
             "node_2",
             MockStateProvider::new(vec![ManifoldState { rho: 0.42, delta: 1e-5, lambda_l_product: 0.5, timestamp: 1000 }]),
             MonitorConfig::default(),
         );
-
         let node3 = DistributedSentinelNode::new(
             "node_3",
             MockStateProvider::new(vec![ManifoldState { rho: 0.44, delta: 1e-5, lambda_l_product: 0.5, timestamp: 1000 }]),
             MonitorConfig::default(),
         );
-
         let mut cluster = DistributedGovernanceCluster::new(vec![node1, node2, node3], 2);
         let res = cluster.evaluate_consensus(&ensemble);
-
         assert!(res.quorum_reached);
         assert_eq!(res.pass_votes, 3);
         assert_eq!(res.status, "CLUSTER_PASS");
