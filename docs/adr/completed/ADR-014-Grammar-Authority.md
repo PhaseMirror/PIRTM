@@ -65,6 +65,6 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
    - This eliminates all lexer ambiguity regarding identifiers or implicit keyword cuts.
 
 9. **Phase 1 Daemon & System-Wide Extractor Freeze Mandate**:
-   - `pirtmd` (`extract_spectral_params` + `split_header_body`) is the **sole authorized Phase 1 extraction entrypoint** across `pirtmd`, `pirtm-mcp`, `pirtm-compiler`, and Sentinel gates.
-   - All tool entrypoints and background daemons MUST route contractivity verification through this canonical extractor.
-   - No crate or daemon (including `pirtm-mcp` or language server tools) may implement an independent `let matrix` or header extractor path prior to v2.0.0 Pest unification.
+   - `pirtmd` (`extract_spectral_params` + `split_header_body`) is the **sole authorized Phase 1 source text extraction entrypoint** across `pirtmd`, `pirtm-mcp`, `pirtm-compiler`, and Sentinel gates.
+   - Structured JSON payload APIs (such as `pirtm-mcp` receiving explicit rational matrix parameters directly via JSON-RPC) remain compliant without invoking a source text parser.
+   - No crate or daemon (including `pirtm-mcp` or language server tools) may implement an independent `let matrix` or header source text parser path prior to v2.0.0 Pest unification.
