@@ -48,4 +48,8 @@ def exportAll : IO Unit := do
   exportADR poseidon2Acceleration (outDir ++ "/ADR-049-Poseidon2-ZK-SNARK-Circuit-Proof-Acceleration.md")
   exportADR distributedGovernanceConsensus (outDir ++ "/ADR-050-Multi-Node-Distributed-Governance-Consensus.md")
   exportADR installationProtocol (outDir ++ "/ADR-051-Local-PC-Installation-Development-Protocol.md")
+  exportADR acePetcIntegration (outDir ++ "/ADR-052-PIRTM-ACE-x-PETC-Safety-and-Lawfulness-Protocol.md")
+  exportADR umcPmroRegulator (outDir ++ "/ADR-053-Universal-Multiplicity-Constant-LambdaM-and-PMRO-Operator.md")
+  exportADR pincCdtSpacetime (outDir ++ "/ADR-054-Prime-Indexed-Noncommutative-Causal-Dynamical-Triangulations.md")
+
 

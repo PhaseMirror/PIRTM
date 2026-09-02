@@ -19,11 +19,14 @@ import Foundations.ADR.WardMonitorStability
 import Foundations.ADR.Poseidon2Soundness
 import Foundations.ADR.DistributedGovernance
 import Foundations.ADR.InstallationProtocol
+import Foundations.ADR.AcePetcIntegration
+import Foundations.ADR.UmcPmroRegulator
+import Foundations.ADR.PincCdtSpacetime
 
 /-!
 # ADR Foundations Test
 
-Lake test suite for ADR invariants, ADR-034 through ADR-051.
+Lake test suite for ADR invariants, ADR-034 through ADR-054.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -44,6 +47,10 @@ open PIRTM.WardMonitorStability
 open PIRTM.Poseidon2Soundness
 open PIRTM.DistributedGovernance
 open PIRTM.InstallationProtocol
+open PIRTM.AcePetcIntegration
+open PIRTM.UmcPmroRegulator
+open PIRTM.PincCdtSpacetime
+
 
 
 def test_accepted_immutable : IO Unit := do
@@ -218,4 +225,28 @@ def test_installation_protocol_soundness : IO Unit := do
     IO.println "ADR-051: Local PC installation protocol soundness test passed"
   else
     throw $ IO.Error.userError "ADR-051: Local installation protocol verification failed"
+
+def test_ace_petc_integration : IO Unit := do
+  let budget : AceBudget := { weightedNormScaled := 85, budgetTauScaled := 100 }
+  if isPetcConserved 42 42 && isAceBudgetSatisfied budget then
+    IO.println "ADR-052: PIRTM ACE x PETC exponent conservation and budget test passed"
+  else
+    throw $ IO.Error.userError "ADR-052: ACE x PETC verification failed"
+
+def test_umc_pmro_regulator : IO Unit := do
+  let st : UmcState := { cScaled := 5, epsilonScaled := 10, stressCounter := 0 }
+  let d : AssociatorDefect := { defectScaled := 4, upperBoundScaled := 6 }
+  if isUmcAdmissible st && isAssociatorDefectBounded d then
+    IO.println "ADR-053: Universal Multiplicity Constant Lambda_m and PMRO associator defect test passed"
+  else
+    throw $ IO.Error.userError "ADR-053: Lambda_m regulator / PMRO verification failed"
+
+def test_pinc_cdt_spacetime : IO Unit := do
+  let st : ActionDensityState := { reggeContributionScaled := 2, ncgContributionScaled := 3, couplingContributionScaled := 1, maxAllowedKsScaled := 10 }
+  let sd : SpectralDimensionState := { dsScaled := 16 }
+  if isActionDensityBounded st && isSpectralDimensionValid sd then
+    IO.println "ADR-054: Prime-indexed NCG-CDT unified action density and spectral dimension test passed"
+  else
+    throw $ IO.Error.userError "ADR-054: PINC-CDT spacetime verification failed"
+
 

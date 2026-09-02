@@ -23,7 +23,11 @@ def main : IO UInt32 := do
   test_poseidon2_soundness
   test_distributed_governance_consensus
   test_installation_protocol_soundness
+  test_ace_petc_integration
+  test_umc_pmro_regulator
+  test_pinc_cdt_spacetime
   exportAll
+
 
   IO.println "All Lean ADR tests and documentation exports executed successfully."
   return 0

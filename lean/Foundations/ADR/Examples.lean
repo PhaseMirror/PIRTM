@@ -348,3 +348,52 @@ def installationProtocol : ADR := {
   links := [{uri := "../docs/adr/ADR-051-Local-PC-Installation-Development-Protocol.md", label := "ADR-051 Document"}]
 }
 
+/-- ADR-052: PIRTM ACE x PETC Safety and Lawfulness Protocol -/
+def acePetcIntegration : ADR := {
+  id := 52,
+  title := "PIRTM ACE x PETC Safety and Lawfulness Protocol",
+  status := ADRStatus.Accepted,
+  context := "Structural lawfulness and certified stability in prime-indexed recursive tensor models require PETC exponent ledgers and ACE budget soft-thresholding.",
+  decision := "Combine PETC prime signature exponent ledgers with ACE weighted-l1 bisection projection in AcePetcIntegration.",
+  consequences := [
+    "Exact prime exponent conservation e(Y) = sum e(X_i) with zero integer factorization cost.",
+    "Certified contraction bound ||K|| <= tau < 1.",
+    "Synchronize ADR-052 across Lean, Rust workspace, and registry.json."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-052-PIRTM-ACE-x-PETC-Safety-and-Lawfulness-Protocol.md", label := "ADR-052 Document"}]
+}
+
+/-- ADR-053: Universal Multiplicity Constant Lambda_m and PMRO Operator -/
+def umcPmroRegulator : ADR := {
+  id := 53,
+  title := "Universal Multiplicity Constant Lambda_m and PMRO Operator",
+  status := ADRStatus.Accepted,
+  context := "Multi-scale recursive tensor governance and non-associative defect bounds require Lambda_m regulation and PMRO Fourier interference.",
+  decision := "Implement dual-level Lambda_m regulator, PMRO Fourier interference operator, and Category UC completion adjunction in UmcPmroRegulator.",
+  consequences := [
+    "Fail-closed governance under ADR-Lambda_m-01 precedence.",
+    "Destructive quantum phase interference enforcing ||Xi_fourier|| < 1.",
+    "Bounded Frobenius associator defect delta <= 2 * sqrt(N)."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-053-Universal-Multiplicity-Constant-LambdaM-and-PMRO-Operator.md", label := "ADR-053 Document"}]
+}
+
+/-- ADR-054: Prime-Indexed Noncommutative Causal Dynamical Triangulations -/
+def pincCdtSpacetime : ADR := {
+  id := 54,
+  title := "Prime-Indexed Noncommutative Causal Dynamical Triangulations",
+  status := ADRStatus.Accepted,
+  context := "Multiplicity-theoretic quantum spacetime modeling requires unifying NCG noncommutativity and CDT Regge curvature.",
+  decision := "Unify NCG and CDT into prime-indexed operator-valued simplex network with unified Regge-NCG action density s_i in PincCdtSpacetime.",
+  consequences := [
+    "Dynamic coupling between noncommutativity theta_p and discrete curvature epsilon_i.",
+    "Machine-checked operator norm bounds ||S(t)|| <= K_s.",
+    "Bounded spectral dimension proxy 1.2 <= D_s(t) <= 2.0."
+  ],
+  supersedes := none,
+  links := [{uri := "../docs/adr/ADR-054-Prime-Indexed-Noncommutative-Causal-Dynamical-Triangulations.md", label := "ADR-054 Document"}]
+}
+
+
