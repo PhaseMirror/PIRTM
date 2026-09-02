@@ -131,7 +131,7 @@ pub fn find_explicit_delimiter_line(source: &str) -> Option<(usize, usize)> {
                 if b == b'\\' && !escape {
                     escape = true;
                 } else {
-                    if b == b'"' && !escape {
+                    if (b == b'"' || b == b'\'') && !escape {
                         in_string = !in_string;
                     }
                     escape = false;
@@ -204,6 +204,19 @@ fn parse_ast_row(expr: &Expr) -> Result<Vec<(u64, u64)>, String> {
     }
 }
 
+/// Helper to recursively flatten unquoted dotted theorem paths or quoted strings into qualified Lean theorem paths
+fn flatten_theorem_expr(expr: &Expr) -> Result<String, String> {
+    match expr {
+        Expr::StringLit(s) => Ok(s.clone()),
+        Expr::Ident(s) => Ok(s.clone()),
+        Expr::FieldAccess { obj, field } => {
+            let prefix = flatten_theorem_expr(obj)?;
+            Ok(format!("{}.{}", prefix, field))
+        }
+        _ => Err("InvalidTheoremDeclaration: 'theorem' must be a string literal or dotted identifier path (e.g. Foundations.ADR.Foo.bar)".to_string()),
+    }
+}
+
 /// Walk AST statements in envelope header (Phase 1) enforcing strict header validation (ADR-058, ADR-061)
 fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u64, u64)>, Option<String>), String> {
     let (header_text, body_text) = split_header_body(source);
@@ -237,11 +250,7 @@ fn extract_spectral_params(source: &str) -> Result<(Vec<Vec<(u64, u64)>>, Vec<(u
                 } else if name == "lambdas" {
                     lambdas = Some(parse_ast_row(expr)?);
                 } else if name == "theorem" {
-                    match expr {
-                        Expr::StringLit(s) => theorem = Some(s.clone()),
-                        Expr::Ident(s) => theorem = Some(s.clone()),
-                        _ => return Err("InvalidTheoremDeclaration: 'theorem' must be a string literal or dotted identifier path".to_string()),
-                    }
+                    theorem = Some(flatten_theorem_expr(expr)?);
                 } else {
                     return Err(format!("InvalidHeaderStatement: unexpected let binding 'let {}' in envelope header per ADR-058", name));
                 }
@@ -726,6 +735,80 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_daemon_process_request_compile_unquoted_theorem_path() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let unquoted_theorem_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        let theorem = Foundations.ADR.BoundedIteration.iterate_non_expansive;
+        ---
+        fn main() -> i64 { return 42; }
+        "#;
+
+        let req = DaemonRequest {
+            id: 107,
+            method: "compile".to_string(),
+            params: json!({
+                "source": unquoted_theorem_source,
+                "name": "test_contract"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 107);
+        assert!(resp.error.is_none());
+        let result = resp.result.unwrap();
+        assert_eq!(result["status"], "COMPILED");
+        assert_eq!(result["receipt"]["theorem_name"], "Foundations.ADR.BoundedIteration.iterate_non_expansive");
+    }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_compile_header_only_zero_mlir() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let header_only_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        let theorem = Foundations.ADR.BoundedIteration.iterate_non_expansive;
+        "#;
+
+        let req = DaemonRequest {
+            id: 108,
+            method: "compile".to_string(),
+            params: json!({
+                "source": header_only_source,
+                "name": "test_contract"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 108);
+        assert!(resp.error.is_none());
+        let result = resp.result.unwrap();
+        assert_eq!(result["status"], "COMPILED");
+        assert!(result["mlir"].as_str().unwrap().contains("Envelope-only header file certified; zero MLIR code emitted"));
+    }
+
+    #[tokio::test]
     async fn test_daemon_process_request_compile_valid_ast_matrix() {
         let state = Arc::new(Mutex::new(DaemonState {
             runtime: Runtime::new(RuntimeConfig {
@@ -748,7 +831,7 @@ mod tests {
         "#;
 
         let req = DaemonRequest {
-            id: 107,
+            id: 109,
             method: "compile".to_string(),
             params: json!({
                 "source": valid_ast_source,
@@ -758,50 +841,11 @@ mod tests {
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 107);
+        assert_eq!(resp.id, 109);
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         assert_eq!(result["status"], "COMPILED");
         assert_eq!(result["receipt"]["is_norm_contractive"], true);
-    }
-
-    #[tokio::test]
-    async fn test_daemon_process_request_compile_valid_header_delimiter() {
-        let state = Arc::new(Mutex::new(DaemonState {
-            runtime: Runtime::new(RuntimeConfig {
-                dry_run: true,
-                jid_enabled: false,
-                ledger_enabled: true,
-                enforce_bounds: true,
-                input_args: vec![],
-            }),
-            session_count: 0,
-        }));
-
-        let header_delimited_source = r#"
-        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
-        let lambdas = ((9, 10), (9, 10));
-        ---
-        fn main() -> i64 {
-            return 42;
-        }
-        "#;
-
-        let req = DaemonRequest {
-            id: 108,
-            method: "compile".to_string(),
-            params: json!({
-                "source": header_delimited_source,
-                "name": "test_contract",
-                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
-            }),
-        };
-
-        let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 108);
-        assert!(resp.error.is_none());
-        let result = resp.result.unwrap();
-        assert_eq!(result["status"], "COMPILED");
     }
 
     #[tokio::test]
@@ -818,13 +862,13 @@ mod tests {
         }));
 
         let req = DaemonRequest {
-            id: 109,
+            id: 110,
             method: "get_status".to_string(),
             params: json!({}),
         };
 
         let resp = process_request(req, state).await;
-        assert_eq!(resp.id, 109);
+        assert_eq!(resp.id, 110);
         let result = resp.result.unwrap();
         assert_eq!(result["daemon_status"], "ACTIVE");
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
