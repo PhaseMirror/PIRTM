@@ -2,39 +2,60 @@ import Foundations.ADR.Core
 import Foundations.ADR.Proofs
 
 /-!
-# ADR-055: Exact Rational 1-Norm Matrix Contractivity
+# ADR-055: Exact rational 1-norm column sums
 
-This module formalizes the exact rational contractivity predicate over non-negative rationals (PosRat).
-Matrix entries A_ij and contraction factors λ_j are stored as reduced exact rationals in Q.
-The matrix 1-norm ||G||_1 = max_j sum_i (A_ij * λ_j) strictly bounds the spectral radius ρ(G) <= ||G||_1.
+Defines PosRat, entry product, list column sum, and ||G||_1 as the max of
+precomputed column sums. Does not prove ρ(G) ≤ ||G||_1 in Lean; that inequality
+is classical analysis recorded in the ADR prose.
 -/
 
 namespace Foundations.ADR.PosRatContractivity
 
-/-- Representation of a non-negative rational pair (p, q) with q >= 1 -/
 structure PosRat where
   num : Nat
   den : Nat
   den_pos : den > 0
   deriving Repr
 
-/-- Compute 1-norm contractivity column sum for two component coupling -/
-def column_sum_2 (a1 : PosRat) (l1 : PosRat) (a2 : PosRat) (l2 : PosRat) : PosRat :=
-  let n1 := a1.num * l1.num * a2.den * l2.den + a2.num * l2.num * a1.den * l1.den
-  let d1 := a1.den * l1.den * a2.den * l2.den
-  have h1 := Nat.mul_pos a1.den_pos l1.den_pos
-  have h2 := Nat.mul_pos h1 a2.den_pos
-  have h3 := Nat.mul_pos h2 l2.den_pos
-  ⟨n1, d1, h3⟩
+def mul (a b : PosRat) : PosRat :=
+  ⟨a.num * b.num, a.den * b.den, Nat.mul_pos a.den_pos b.den_pos⟩
 
-/-- Predicate confirming strict 1-norm contractivity ||G||_1 < 1 -/
+def add (a b : PosRat) : PosRat :=
+  ⟨a.num * b.den + b.num * a.den, a.den * b.den, Nat.mul_pos a.den_pos b.den_pos⟩
+
+def zero : PosRat :=
+  ⟨0, 1, Nat.succ_pos 0⟩
+
+def col_sum : List PosRat → PosRat
+  | [] => zero
+  | x :: xs => add x (col_sum xs)
+
+def g_column (Acol : List PosRat) (lam : PosRat) : PosRat :=
+  col_sum (Acol.map (fun a => mul a lam))
+
+def max_q : List PosRat → PosRat
+  | [] => zero
+  | x :: xs =>
+    let m := max_q xs
+    if x.num * m.den ≥ m.num * x.den then x else m
+
+/-- ||G||_1 from already-formed column sums in Q. -/
+def norm1 (column_sums : List PosRat) : PosRat :=
+  max_q column_sums
+
 def is_contractive (s : PosRat) : Bool :=
   decide (s.num < s.den)
 
-/-- Soundness theorem: If is_contractive s is true, s.num < s.den -/
-theorem posrat_norm_contractive_sound (s : PosRat) (h : is_contractive s = true) :
-  s.num < s.den := by
-  unfold is_contractive at h
-  exact of_decide_eq_true h
+theorem is_contractive_iff (s : PosRat) :
+    is_contractive s = true ↔ s.num < s.den := by
+  simp [is_contractive]
+
+theorem mul_left_zero (a : PosRat) :
+    (mul zero a).num = 0 := by
+  simp [mul, zero]
+
+theorem mul_right_zero (a : PosRat) :
+    (mul a zero).num = 0 := by
+  simp [mul, zero]
 
 end Foundations.ADR.PosRatContractivity

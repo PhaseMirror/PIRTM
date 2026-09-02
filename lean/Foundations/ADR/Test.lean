@@ -26,8 +26,6 @@ import Foundations.ADR.PosRatContractivity
 
 /-!
 # ADR Foundations Test
-
-Lake test suite for ADR invariants, ADR-034 through ADR-054.
 -/
 open PIRTM.ADR
 open PIRTM.DialecticalSemantics
@@ -51,8 +49,6 @@ open PIRTM.InstallationProtocol
 open PIRTM.AcePetcIntegration
 open PIRTM.UmcPmroRegulator
 open PIRTM.PincCdtSpacetime
-
-
 
 def test_accepted_immutable : IO Unit := do
   let a := foundryIntegration
@@ -237,7 +233,6 @@ def test_ace_petc_integration : IO Unit := do
   else
     throw $ IO.Error.userError "ADR-052: ACE x PETC verification failed"
 
-
 def test_umc_pmro_regulator : IO Unit := do
   let st : UmcState := { cScaled := 5, epsilonScaled := 10, stressCounter := 0 }
   let d : AssociatorDefect := { defectScaled := 4, upperBoundScaled := 6 }
@@ -255,13 +250,13 @@ def test_pinc_cdt_spacetime : IO Unit := do
     throw $ IO.Error.userError "ADR-054: PINC-CDT spacetime verification failed"
 
 def test_posrat_contractivity : IO Unit := do
-  let a1 : Foundations.ADR.PosRatContractivity.PosRat := ⟨4, 10, by decide⟩
-  let l1 : Foundations.ADR.PosRatContractivity.PosRat := ⟨9, 10, by decide⟩
-  let a2 : Foundations.ADR.PosRatContractivity.PosRat := ⟨0, 10, by decide⟩
-  let l2 : Foundations.ADR.PosRatContractivity.PosRat := ⟨9, 10, by decide⟩
-  let col_sum := Foundations.ADR.PosRatContractivity.column_sum_2 a1 l1 a2 l2
-  if Foundations.ADR.PosRatContractivity.is_contractive col_sum then
-    IO.println "ADR-055: Exact rational 1-norm matrix contractivity test passed"
+  let a00 : Foundations.ADR.PosRatContractivity.PosRat := ⟨0, 1, by decide⟩
+  let a01 : Foundations.ADR.PosRatContractivity.PosRat := ⟨2, 5, by decide⟩
+  let lam : Foundations.ADR.PosRatContractivity.PosRat := ⟨9, 10, by decide⟩
+  let col0 := Foundations.ADR.PosRatContractivity.g_column [a00, a01] lam
+  let col1 := Foundations.ADR.PosRatContractivity.g_column [a01, a00] lam
+  let n1 := Foundations.ADR.PosRatContractivity.norm1 [col0, col1]
+  if Foundations.ADR.PosRatContractivity.is_contractive n1 then
+    IO.println "ADR-055: PosRat column-sum 1-norm predicate test passed"
   else
-    throw $ IO.Error.userError "ADR-055: PosRat contractivity verification failed"
-
+    throw $ IO.Error.userError "ADR-055: PosRat column-sum 1-norm predicate failed"
