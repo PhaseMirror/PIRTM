@@ -24,6 +24,10 @@ Certified contractivity receipts contain a `theorem_name` anchor string (e.g. `F
    - `export_decls` emits proved non-axiom declarations (`theorem`, `lemma`, `def`, `structure`).
    - Raw `axiom` declarations and unproven axiom stubs are **strictly excluded** from `lake_export_decls.json`. A receipt anchor referencing an unproven `axiom` fails closed with `MissingLeanDecl`.
 
+4. **Scope Boundary (`sorry` Proof-Debt Isolation)**:
+   - Phase A is strictly a **syntactic name-set lookup** against `lake_export_decls.json`.
+   - Proof-term dependency walks and transitive `sorryAx` detection belong strictly to **Phase B semantic verification** and `ADR-019` proof-debt manifest auditing (`alp_sorry_manifest.json`). Phase A does not walk proof terms.
+
 ## Consequences
 
 - Guarantees every certified receipt anchor corresponds to a real Lean 4 declaration.
