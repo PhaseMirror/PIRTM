@@ -12,14 +12,9 @@ fn test_governed_http_server_end_to_end() {
     let ensemble = Ensemble::new(
         "governed_http_ensemble",
         vec![vec![0.0, 0.4], vec![0.4, 0.0]],
-<<<<<<< HEAD
         vec![0.9, 0.9],
     )
     .with_theorem_name("author_declared_lambda");
-=======
-        vec![(4, 5), (4, 5)],
-    ).with_theorem_name("author_declared_lambda");
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 
     let server = GovernedHttpServer::new(19999, ensemble);
     let running = Arc::new(AtomicBool::new(true));

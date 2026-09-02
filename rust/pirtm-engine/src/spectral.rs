@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 //! Exact rational 1-norm contractivity gate.
 //!
 //! Production predicate:
@@ -10,47 +9,17 @@
 //!
 //! Float eigen-solvers in this file are diagnostic only. They are not hashed
 //! and are not a pass condition.
-=======
-//! Spectral Small-Gain Runtime Gate & Exact Rational 1-Norm Certification
-//!
-//! Enforces the foundational Small-Gain Theorem invariant over exact rationals:
-//!     ||G||_1 = max_j sum_i |A_ij| * λ_j < 1.0
-//!
-//! where A is the inter-ensemble interconnection matrix, λ is the vector of
-//! certified per-atom contraction gains (p_j / q_j), and theorem_name is the
-//! required Lean theorem anchor.
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 
 use nalgebra::DMatrix;
-use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-<<<<<<< HEAD
 use std::cmp::Ordering;
 use std::fmt;
-=======
-use thiserror::Error;
-
-#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum EnsembleError {
-    #[error("Missing or invalid Lean theorem anchor identifier")]
-    MissingTheoremAnchor,
-    #[error("Spectral 1-norm contractivity violation: ||G||_1 = {0}/{1} >= 1.0")]
-    NormContractivityViolation(u64, u64),
-    #[error("Dimension mismatch: matrix is {0}x{0}, but lambda has length {1}")]
-    DimensionMismatch(usize, usize),
-    #[error("Invalid non-square or negative matrix entry")]
-    InvalidMatrix,
-    #[error("Invalid zero or negative contraction gain denominator")]
-    InvalidGain,
-}
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 
 fn default_ensemble_name() -> String {
     "default_ensemble".to_string()
 }
 
-<<<<<<< HEAD
 fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         let t = b;
@@ -245,50 +214,20 @@ fn vec_from_f64(xs: &[f64]) -> Result<Vec<PosRat>, EnsembleError> {
     xs.iter().map(|x| PosRat::from_f64_membrane(*x)).collect()
 }
 
-=======
-/// Helper to validate Lean-style identifiers: [a-zA-Z_][a-zA-Z0-9_.]*
-pub fn is_valid_lean_identifier(name: &str) -> bool {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-    let mut chars = trimmed.chars();
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return false,
-    };
-    if !(first.is_ascii_alphabetic() || first == '_') {
-        return false;
-    }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
-}
-
-/// An interconnected ensemble of components with coupling matrix A and exact rational gains λ (p/q)
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Ensemble {
     #[serde(default = "default_ensemble_name")]
     pub name: String,
-<<<<<<< HEAD
     pub adjacency: Vec<Vec<PosRat>>,
     pub lambdas: Vec<PosRat>,
-=======
-    pub adjacency: Vec<Vec<f64>>,
-    /// Exact rational gains: (numerator, denominator)
-    pub lambdas: Vec<(u64, u64)>,
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
     #[serde(default)]
     pub theorem_name: String,
 }
 
 impl Ensemble {
-<<<<<<< HEAD
     /// Construct from f64 literals via the continued-fraction membrane.
     /// Prefer `from_rationals` for exact Q.
     pub fn new(name: impl Into<String>, adjacency: Vec<Vec<f64>>, lambdas: Vec<f64>) -> Self {
-=======
-    pub fn new(name: impl Into<String>, adjacency: Vec<Vec<f64>>, lambdas: Vec<(u64, u64)>) -> Self {
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
         Self {
             name: name.into(),
             adjacency: matrix_from_f64(&adjacency).unwrap_or_default(),
@@ -313,79 +252,24 @@ impl Ensemble {
     pub fn with_theorem_name(mut self, theorem_name: impl Into<String>) -> Self {
         self.theorem_name = theorem_name.into();
         self
-<<<<<<< HEAD
     }
 }
 
-=======
-    }
-
-    /// Compute exact rational 1-norm ||G||_1 = max_j sum_i |A_ij| * (p_j / q_j)
-    pub fn compute_rational_norm_1(&self) -> Result<Ratio<u64>, EnsembleError> {
-        let n = self.adjacency.len();
-        if n == 0 {
-            return Ok(Ratio::new(0, 1));
-        }
-        if n != self.lambdas.len() {
-            return Err(EnsembleError::DimensionMismatch(n, self.lambdas.len()));
-        }
-
-        for (i, row) in self.adjacency.iter().enumerate() {
-            if row.len() != n {
-                return Err(EnsembleError::InvalidMatrix);
-            }
-        }
-
-        let mut max_col_sum = Ratio::new(0, 1);
-
-        for j in 0..n {
-            let (num, den) = self.lambdas[j];
-            if den == 0 {
-                return Err(EnsembleError::InvalidGain);
-            }
-            let gain_j = Ratio::new(num, den);
-
-            let mut col_sum = Ratio::new(0, 1);
-            for i in 0..n {
-                let entry_abs = self.adjacency[i][j].abs();
-                // Represent entries in exact ratio scaling (x1_000_000 for float inputs)
-                let entry_num = (entry_abs * 1_000_000.0).round() as u64;
-                let entry_ratio = Ratio::new(entry_num, 1_000_000);
-                col_sum += entry_ratio * gain_j;
-            }
-
-            if col_sum > max_col_sum {
-                max_col_sum = col_sum;
-            }
-        }
-
-        Ok(max_col_sum)
-    }
-}
-
-/// Cryptographic receipt certifying exact rational 1-norm contractivity
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnsembleContractivityReceipt {
     pub hash: String,
     pub ensemble_name: String,
     pub dimension: usize,
-<<<<<<< HEAD
     /// Reduced ||G||_1 in Q.
     pub exact_rational_norm_1: (u64, u64),
     /// true iff num < den.
     pub is_norm_contractive: bool,
-=======
-    pub exact_rational_norm_1: (u64, u64),
-    pub is_stable: bool,
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
     pub theorem_name: String,
     pub timestamp: u64,
 }
 
 impl EnsembleContractivityReceipt {
     pub fn validate(&self) -> Result<(), EnsembleError> {
-<<<<<<< HEAD
         if is_theorem_anchor(&self.theorem_name) {
             Ok(())
         } else {
@@ -395,72 +279,6 @@ impl EnsembleContractivityReceipt {
 }
 
 /// Diagnostic only. Not used by validate_and_certify. Not hashed.
-=======
-        if !is_valid_lean_identifier(&self.theorem_name) {
-            return Err(EnsembleError::MissingTheoremAnchor);
-        }
-        if self.exact_rational_norm_1.0 >= self.exact_rational_norm_1.1 {
-            return Err(EnsembleError::NormContractivityViolation(
-                self.exact_rational_norm_1.0,
-                self.exact_rational_norm_1.1,
-            ));
-        }
-        Ok(())
-    }
-}
-
-/// Validate an ensemble over exact rational 1-norm and generate a certified receipt
-pub fn validate_and_certify(ensemble: &Ensemble, _margin: f64) -> Result<EnsembleContractivityReceipt, EnsembleError> {
-    if !is_valid_lean_identifier(&ensemble.theorem_name) {
-        return Err(EnsembleError::MissingTheoremAnchor);
-    }
-
-    let norm_1 = ensemble.compute_rational_norm_1()?;
-
-    if norm_1 >= Ratio::new(1, 1) {
-        return Err(EnsembleError::NormContractivityViolation(
-            *norm_1.numer(),
-            *norm_1.denom(),
-        ));
-    }
-
-    let mut hasher = Sha256::new();
-    hasher.update(ensemble.name.as_bytes());
-    hasher.update(ensemble.theorem_name.as_bytes());
-    hasher.update(&norm_1.numer().to_le_bytes());
-    hasher.update(&norm_1.denom().to_le_bytes());
-    for row in &ensemble.adjacency {
-        for &val in row {
-            hasher.update(&val.to_le_bytes());
-        }
-    }
-    for &(num, den) in &ensemble.lambdas {
-        hasher.update(&num.to_le_bytes());
-        hasher.update(&den.to_le_bytes());
-    }
-    let hash = format!("{:x}", hasher.finalize());
-
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let receipt = EnsembleContractivityReceipt {
-        hash,
-        ensemble_name: ensemble.name.clone(),
-        dimension: ensemble.adjacency.len(),
-        exact_rational_norm_1: (*norm_1.numer(), *norm_1.denom()),
-        is_stable: true,
-        theorem_name: ensemble.theorem_name.clone(),
-        timestamp,
-    };
-
-    receipt.validate()?;
-    Ok(receipt)
-}
-
-/// Direct floating-point spectral radius calculator (unofficial diagnostic helper, unhashed)
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 pub fn spectral_radius_direct(matrix: &[Vec<f64>]) -> Result<f64, String> {
     let n = matrix.len();
     if n == 0 {
@@ -481,7 +299,6 @@ pub fn spectral_radius_direct(matrix: &[Vec<f64>]) -> Result<f64, String> {
     Ok(max_abs)
 }
 
-<<<<<<< HEAD
 /// Diagnostic only. Not used by validate_and_certify. Not hashed.
 pub fn spectral_radius_power(matrix: &[Vec<f64>], max_iter: usize, tol: f64) -> Result<f64, String> {
     let n = matrix.len();
@@ -624,13 +441,10 @@ pub fn validate_and_certify(
     Ok(receipt)
 }
 
-=======
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 #[cfg(test)]
 mod tests {
     use super::*;
 
-<<<<<<< HEAD
     fn q(n: u64, d: u64) -> PosRat {
         PosRat::new(n, d).unwrap()
     }
@@ -700,81 +514,5 @@ mod tests {
         assert_eq!(ensemble.adjacency[0][1].as_pair(), (2, 5));
         assert_eq!(ensemble.lambdas[0].as_pair(), (9, 10));
         assert_eq!(one_norm(&ensemble).unwrap().as_pair(), (9, 25));
-=======
-    #[test]
-    fn test_small_gain_accept_acyclic() {
-        // Acyclic pipeline: 1 -> 2, A = [[0, 0.4], [0, 0]], λ = [(1, 2), (1, 2)]
-        // ||G||_1 = max(0, 0.4 * 0.5) = 0.2 < 1.0
-        let ensemble = Ensemble::new(
-            "pipeline",
-            vec![
-                vec![0.0, 0.4],
-                vec![0.0, 0.0],
-            ],
-            vec![(1, 2), (1, 2)],
-        ).with_theorem_name("Foundations.ADR.BoundedIteration.iterate_non_expansive");
-
-        let norm_1 = ensemble.compute_rational_norm_1().expect("Acyclic pipeline must compute norm");
-        assert!(norm_1 < Ratio::new(1, 1));
-
-        let cert = validate_and_certify(&ensemble, 0.0).expect("Certified receipt emitted");
-        assert!(cert.is_stable);
-        assert_eq!(cert.theorem_name, "Foundations.ADR.BoundedIteration.iterate_non_expansive");
-        assert!(!cert.hash.is_empty());
-    }
-
-    #[test]
-    fn test_small_gain_accept_stable_feedback() {
-        // Contractive feedback: A = [[0, 0.4], [0.4, 0]], λ = [(9, 10), (9, 10)]
-        // ||G||_1 = max(0.4 * 0.9, 0.4 * 0.9) = 0.36 < 1.0
-        let ensemble = Ensemble::new(
-            "stable_loop",
-            vec![
-                vec![0.0, 0.4],
-                vec![0.4, 0.0],
-            ],
-            vec![(9, 10), (9, 10)],
-        ).with_theorem_name("author_declared_lambda");
-
-        let cert = validate_and_certify(&ensemble, 0.0).expect("Stable loop with ||G||_1=0.36 must pass");
-        assert!(cert.is_stable);
-        assert_eq!(cert.exact_rational_norm_1, (9, 25));
-    }
-
-    #[test]
-    fn test_small_gain_reject_unstable_feedback() {
-        // Expansive feedback: A = [[0, 2.0], [0.5, 0.0]], λ = [(9, 10), (9, 10)]
-        // ||G||_1 = max(0.5 * 0.9, 2.0 * 0.9) = max(0.45, 1.8) = 1.8 >= 1.0
-        let ensemble = Ensemble::new(
-            "unstable_loop",
-            vec![
-                vec![0.0, 2.0],
-                vec![0.5, 0.0],
-            ],
-            vec![(9, 10), (9, 10)],
-        ).with_theorem_name("author_declared_lambda");
-
-        let res = validate_and_certify(&ensemble, 0.0);
-        assert!(res.is_err());
-        assert_eq!(
-            res.unwrap_err(),
-            EnsembleError::NormContractivityViolation(9, 5)
-        );
-    }
-
-    #[test]
-    fn test_missing_theorem_name_fails() {
-        let ensemble = Ensemble::new(
-            "unanchored",
-            vec![
-                vec![0.0, 0.4],
-                vec![0.4, 0.0],
-            ],
-            vec![(1, 2), (1, 2)],
-        ); // empty theorem_name
-
-        let res = validate_and_certify(&ensemble, 0.0);
-        assert_eq!(res.unwrap_err(), EnsembleError::MissingTheoremAnchor);
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
     }
 }

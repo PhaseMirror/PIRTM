@@ -83,7 +83,6 @@ impl SpectralGovernor {
             }
         }
 
-<<<<<<< HEAD
         let ensemble = Ensemble::new(root_name, adjacency, lambdas)
             .with_theorem_name(root_manifest.governance.theorem_name.clone());
         match spectral::validate_and_certify(&ensemble, 0.0) {
@@ -112,37 +111,6 @@ impl SpectralGovernor {
                 total: 1.0,
                 limit: 1.0,
             }),
-=======
-        // 3. Evaluate exact rational 1-norm contractivity certification gate
-        let rational_lambdas: Vec<(u64, u64)> = lambdas
-            .iter()
-            .map(|&l| ((l * 1_000_000.0).round() as u64, 1_000_000))
-            .collect();
-        let theorem_name = root_manifest.governance.theorem_name.clone();
-        let theorem_anchor = if theorem_name.is_empty() {
-            "author_declared_lambda".to_string()
-        } else {
-            theorem_name
-        };
-
-        let ensemble = Ensemble::new(root_name, adjacency, rational_lambdas)
-            .with_theorem_name(theorem_anchor);
-
-        let receipt = spectral::validate_and_certify(&ensemble, 0.0).map_err(|e| {
-            LinkerError::SpectralBudgetExceeded {
-                ensemble: root_name.to_string(),
-                total: 1.0,
-                limit: 1.0,
-            }
-        })?;
-
-        if !receipt.is_stable {
-            return Err(LinkerError::SpectralBudgetExceeded {
-                ensemble: root_name.to_string(),
-                total: 1.0,
-                limit: 1.0,
-            });
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
         }
     }
 
@@ -211,17 +179,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-<<<<<<< HEAD
             governance: gov(0.5, "hash1", "author_declared_lambda"),
-=======
-            governance: GovernanceMeta {
-                spectral_radius: 0.5,
-                epsilon: None,
-                contractivity_receipt: "hash1".to_string(),
-                ledger_anchor: None,
-                theorem_name: "author_declared_lambda".to_string(),
-            },
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
             dependencies: Some(deps),
         };
 
@@ -233,17 +191,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-<<<<<<< HEAD
             governance: gov(0.2, "hash2", "author_declared_lambda"),
-=======
-            governance: GovernanceMeta {
-                spectral_radius: 0.2,
-                epsilon: None,
-                contractivity_receipt: "hash2".to_string(),
-                ledger_anchor: None,
-                theorem_name: "author_declared_lambda".to_string(),
-            },
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
             dependencies: None,
         };
 
@@ -310,17 +258,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-<<<<<<< HEAD
             governance: gov(0.9, "hash_a", "author_declared_lambda"),
-=======
-            governance: GovernanceMeta {
-                spectral_radius: 0.9,
-                epsilon: None,
-                contractivity_receipt: "hash_a".to_string(),
-                ledger_anchor: None,
-                theorem_name: "author_declared_lambda".to_string(),
-            },
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
             dependencies: Some(deps_a),
         };
 
@@ -332,17 +270,7 @@ mod tests {
                 description: None,
                 authors: None,
             },
-<<<<<<< HEAD
             governance: gov(0.9, "hash_b", "author_declared_lambda"),
-=======
-            governance: GovernanceMeta {
-                spectral_radius: 0.9,
-                epsilon: None,
-                contractivity_receipt: "hash_b".to_string(),
-                ledger_anchor: None,
-                theorem_name: "author_declared_lambda".to_string(),
-            },
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
             dependencies: Some(deps_b),
         };
 

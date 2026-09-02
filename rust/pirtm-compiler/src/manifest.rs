@@ -23,10 +23,7 @@ pub struct GovernanceMeta {
     pub epsilon: Option<f64>,
     pub contractivity_receipt: String,
     pub ledger_anchor: Option<String>,
-<<<<<<< HEAD
     /// Author-declared Lean identifier. Absent/empty TOML fails certify.
-=======
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
     #[serde(default)]
     pub theorem_name: String,
 }

@@ -21,7 +21,6 @@ impl<P: ManifoldStateProvider> Sentinel<P> {
     /// Require a certified ensemble (theorem_name present) before sealing.
     /// MissingTheoremAnchor returns Err and does not stamp a WORM receipt.
     pub fn validate_and_seal(&mut self, ensemble: &Ensemble) -> Result<String, String> {
-<<<<<<< HEAD
         // 1. Certified small-gain (Rule-HO-01). Raw ρ is not a seal.
         let cert = match validate_and_certify(ensemble, 1e-6) {
             Ok(c) => c,
@@ -31,12 +30,6 @@ impl<P: ManifoldStateProvider> Sentinel<P> {
             Err(e) => {
                 self.trigger_kill(&format!("Registration-time contractivity violation: {}", e));
             }
-=======
-        // 1. Static small-gain check (Rule-HO-01)
-        let cert = match validate_and_certify(ensemble, 1e-6) {
-            Ok(c) => c,
-            Err(e) => self.trigger_kill(&format!("Registration-time contractivity violation: {}", e)),
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
         };
 
         // 2. Dynamic drift check via ManifoldStateProvider

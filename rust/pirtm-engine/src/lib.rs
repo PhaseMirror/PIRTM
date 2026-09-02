@@ -12,11 +12,7 @@ use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::process::{Command, Stdio};
 use std::io::Write;
-<<<<<<< HEAD
 pub use spectral::{Ensemble, EnsembleContractivityReceipt, EnsembleError, PosRat, check_small_gain, validate_and_certify};
-=======
-pub use spectral::{Ensemble, EnsembleContractivityReceipt, validate_and_certify};
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
 pub use governance::Sentinel;
 pub use http_server::{GovernedHttpServer, GovernedHttpResponse};
 
@@ -57,23 +53,14 @@ impl Runtime {
     }
 
     pub fn validate_ensemble(&self, ensemble: &Ensemble) -> Result<EnsembleContractivityReceipt, String> {
-<<<<<<< HEAD
         let cert = spectral::validate_and_certify(ensemble, 0.0)?;
-=======
-        let cert = spectral::validate_and_certify(ensemble, 1e-6).map_err(|e| e.to_string())?;
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
         println!(
             "AUDIT EVENT: ensemble_validated - {}",
             json!({
                 "ensemble_name": cert.ensemble_name,
-                "theorem_name": cert.theorem_name,
                 "dimension": cert.dimension,
                 "exact_rational_norm_1": cert.exact_rational_norm_1,
-<<<<<<< HEAD
                 "is_norm_contractive": cert.is_norm_contractive,
-=======
-                "is_stable": cert.is_stable,
->>>>>>> 5318951 (Refactor Ensemble Initialization and Validation Logic)
                 "receipt_hash": cert.hash,
                 "theorem_name": cert.theorem_name,
             })

@@ -336,8 +336,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map_err(|e| format!("Ensemble validation failed: {}", e))?;
                 println!("✅ Ensemble validated under Small-Gain Theorem.");
                 println!("   Receipt hash: {}", receipt.hash);
-                println!("   Exact 1-norm ||G||_1: {}/{}", receipt.exact_rational_norm_1.0, receipt.exact_rational_norm_1.1);
-                println!("   Theorem anchor: {}", receipt.theorem_name);
+                println!("   Spectral radius ρ: {:.6}", receipt.spectral_radius);
             } else {
                 eprintln!("⚠️  No ensemble config provided; skipping link-time spectral check.");
             }

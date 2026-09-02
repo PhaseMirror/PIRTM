@@ -1414,7 +1414,6 @@ dependencies = [
  "hex",
  "nalgebra 0.32.6",
  "num-bigint",
- "num-rational",
  "num-traits",
  "pirtm-monitor",
  "serde",
