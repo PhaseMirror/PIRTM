@@ -30,6 +30,10 @@ pub mod sentinel;
 pub mod ward_monitor_proof;
 pub mod poseidon2_proof;
 pub mod distributed_governance_proof;
+pub mod ace_petc_proof;
+pub mod umc_pmro_proof;
+pub mod pinc_cdt_proof;
 
 pub use core::{AdrId, AdrStatus, AdrError, ArtifactLink, Adr, AdrRegistry};
 pub use examples::example_adrs;
+

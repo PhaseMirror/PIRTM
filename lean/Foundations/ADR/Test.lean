@@ -228,10 +228,14 @@ def test_installation_protocol_soundness : IO Unit := do
 
 def test_ace_petc_integration : IO Unit := do
   let budget : AceBudget := { weightedNormScaled := 85, budgetTauScaled := 100 }
-  if isPetcConserved 42 42 && isAceBudgetSatisfied budget then
+  let sig1 : PetcSignature2 := { exp2 := 3, exp3 := 1 }
+  let sig2 : PetcSignature2 := { exp2 := 2, exp3 := 4 }
+  let sigOut : PetcSignature2 := { exp2 := 5, exp3 := 5 }
+  if isPetcConserved2 sig1 sig2 sigOut && isAceBudgetSatisfied budget then
     IO.println "ADR-052: PIRTM ACE x PETC exponent conservation and budget test passed"
   else
     throw $ IO.Error.userError "ADR-052: ACE x PETC verification failed"
+
 
 def test_umc_pmro_regulator : IO Unit := do
   let st : UmcState := { cScaled := 5, epsilonScaled := 10, stressCounter := 0 }
