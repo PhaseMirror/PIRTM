@@ -7,7 +7,8 @@ package PIRTM where
 
 lean_lib Foundations where
   srcDir := "lean"
-  globs := #[.submodules `Foundations, .andSubmodules `ADR]
+  -- Sole ADR root: lean/Foundations/ADR. Do not glob lean/ADR.
+  globs := #[.submodules `Foundations]
 
 @[default_target]
 lean_exe TestDriver where

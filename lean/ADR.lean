@@ -1,8 +1,7 @@
-import ADR.Core
-import ADR.Proofs
-import ADR.Examples
-import ADR.Harmonia
-import ADR.BoundedIteration
-import ADR.LoweringSoundness
-import ADR.ZenoController
-import ADR.QMHESStability
+/-!
+# Deprecated module root
+
+`lean/ADR` is not a Lake target.
+Canonical Lean ADR root: `lean/Foundations/ADR` (`Foundations.ADR.*`).
+Do not import this file.
+-/
