@@ -1,5 +1,5 @@
 use pirtm_engine::{
-    spectral::{check_small_gain, Ensemble},
+    spectral::{validate_and_certify, Ensemble},
     Runtime, RuntimeConfig,
 };
 use pirtm_mlir::pirtm::transpiler::visitor::MlirEmitterVisitor;
@@ -34,7 +34,7 @@ pub fn list_tools() -> Value {
             },
             {
                 "name": "pirtm_verify_ensemble",
-                "description": "Validate operator coupling matrix stability under the Spectral Small-Gain Theorem: rho(|A| diag(lambda)) < 1.0.",
+                "description": "Certify operator coupling under Small-Gain: rho(|A| diag(lambda)) < 1.0 with a required theorem_name anchor.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -48,9 +48,13 @@ pub fn list_tools() -> Value {
                             "type": "array",
                             "items": { "type": "number" },
                             "description": "Contraction factors vector lambda in (0, 1)"
+                        },
+                        "theorem_name": {
+                            "type": "string",
+                            "description": "Lean-style identifier anchoring λ. Presence gated; content is ADR-053."
                         }
                     },
-                    "required": ["name", "adjacency_matrix", "lambdas"]
+                    "required": ["name", "adjacency_matrix", "lambdas", "theorem_name"]
                 }
             },
             {
@@ -163,28 +167,38 @@ pub fn handle_call(name: &str, args: &Value) -> Result<Value, String> {
                 .map_err(|e| format!("Invalid adjacency_matrix: {}", e))?;
             let lambdas: Vec<f64> = serde_json::from_value(args.get("lambdas").cloned().unwrap_or(json!([])))
                 .map_err(|e| format!("Invalid lambdas: {}", e))?;
+            let theorem_name = args
+                .get("theorem_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
 
-            let ensemble = Ensemble::new(name, matrix, lambdas);
-            match check_small_gain(&ensemble, 0.0) {
-                Ok(rho) => {
-                    let mut hasher = Sha256::new();
-                    hasher.update(name.as_bytes());
-                    hasher.update(rho.to_le_bytes());
-                    let receipt_hash = hex::encode(hasher.finalize());
-
-                    Ok(json!({
-                        "content": [{
-                            "type": "text",
-                            "text": serde_json::to_string_pretty(&json!({
-                                "ensemble_name": name,
-                                "spectral_radius": rho,
-                                "is_stable": true,
-                                "receipt_hash": receipt_hash,
-                                "action": "ACCEPT"
-                            })).unwrap()
-                        }]
-                    }))
-                }
+            let ensemble = Ensemble::new(name, matrix, lambdas).with_theorem_name(theorem_name);
+            match validate_and_certify(&ensemble, 0.0) {
+                Ok(receipt) => Ok(json!({
+                    "content": [{
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&json!({
+                            "status": "ACCEPT",
+                            "ensemble_name": receipt.ensemble_name,
+                            "spectral_radius": receipt.spectral_radius,
+                            "is_stable": receipt.is_stable,
+                            "seal_hash": receipt.hash,
+                            "theorem_name": receipt.theorem_name,
+                            "action": "ACCEPT"
+                        })).unwrap()
+                    }]
+                })),
+                Err(err) if err.contains("MissingTheoremAnchor") => Ok(json!({
+                    "content": [{
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&json!({
+                            "status": "MISSING_THEOREM_ANCHOR",
+                            "error": err,
+                            "action": "REJECT"
+                        })).unwrap()
+                    }],
+                    "isError": true
+                })),
                 Err(err) => Ok(json!({
                     "content": [{
                         "type": "text",

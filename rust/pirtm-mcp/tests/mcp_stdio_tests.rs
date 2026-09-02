@@ -59,7 +59,8 @@ fn test_mcp_call_verify_ensemble() {
                     [0.0, 0.5],
                     [0.5, 0.0]
                 ],
-                "lambdas": [0.8, 0.8]
+                "lambdas": [0.8, 0.8],
+                "theorem_name": "author_declared_lambda"
             }
         }
     });
@@ -71,7 +72,43 @@ fn test_mcp_call_verify_ensemble() {
     let resp_str = String::from_utf8(output).expect("valid utf8");
     let resp: Value = serde_json::from_str(resp_str.trim()).expect("valid json");
     assert_eq!(resp["id"], 3);
-    assert!(resp["result"]["content"][0]["text"].as_str().unwrap().contains("ACCEPT"));
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("ACCEPT"));
+    assert!(text.contains("seal_hash"));
+    assert!(text.contains("author_declared_lambda"));
+}
+
+#[test]
+fn test_mcp_call_verify_ensemble_missing_theorem_name() {
+    let server = McpServer::new();
+
+    let call_req = json!({
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tools/call",
+        "params": {
+            "name": "pirtm_verify_ensemble",
+            "arguments": {
+                "name": "test_ensemble",
+                "adjacency_matrix": [
+                    [0.0, 0.5],
+                    [0.5, 0.0]
+                ],
+                "lambdas": [0.8, 0.8]
+            }
+        }
+    });
+
+    let input = format!("{}\n", call_req);
+    let mut output = Vec::new();
+    server.run_stdio(Cursor::new(input), &mut output).expect("stdio run failed");
+
+    let resp_str = String::from_utf8(output).expect("valid utf8");
+    let resp: Value = serde_json::from_str(resp_str.trim()).expect("valid json");
+    assert_eq!(resp["id"], 5);
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("MissingTheoremAnchor"));
+    assert_eq!(resp["result"]["isError"], true);
 }
 
 #[test]
