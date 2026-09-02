@@ -63,3 +63,8 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
    - For files containing both packaging envelopes and application code bodies, `---` is the mandatory deterministic header delimiter rule (`header_delimiter = { "---" }`).
    - Files lacking `---` are evaluated as header-only packaging envelope files (`header_only_file = { SOI ~ envelope_decls ~ EOI }`).
    - This eliminates all lexer ambiguity regarding identifiers or implicit keyword cuts.
+
+9. **Phase 1 Daemon & System-Wide Extractor Freeze Mandate**:
+   - `pirtmd` (`extract_spectral_params` + `split_header_body`) is the **sole authorized Phase 1 extraction entrypoint** across `pirtmd`, `pirtm-mcp`, `pirtm-compiler`, and Sentinel gates.
+   - All tool entrypoints and background daemons MUST route contractivity verification through this canonical extractor.
+   - No crate or daemon (including `pirtm-mcp` or language server tools) may implement an independent `let matrix` or header extractor path prior to v2.0.0 Pest unification.
