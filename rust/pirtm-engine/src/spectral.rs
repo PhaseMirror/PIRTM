@@ -516,3 +516,23 @@ mod tests {
         assert_eq!(one_norm(&ensemble).unwrap().as_pair(), (9, 25));
     }
 }
+
+#[cfg(kani)]
+mod kani_harnesses {
+    use super::*;
+
+    #[kani::proof]
+    fn proof_posrat_reduction_canonical() {
+        let p: u64 = kani::any();
+        let q: u64 = kani::any();
+        kani::assume(q > 0);
+        kani::assume(p < 1000);
+        kani::assume(q < 1000);
+
+        if let Ok(rat) = PosRat::new(p, q) {
+            let (num, den) = rat.as_pair();
+            kani::assert(den > 0);
+            kani::assert(num * q == p * den);
+        }
+    }
+}

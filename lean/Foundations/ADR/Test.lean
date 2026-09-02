@@ -22,6 +22,7 @@ import Foundations.ADR.InstallationProtocol
 import Foundations.ADR.AcePetcIntegration
 import Foundations.ADR.UmcPmroRegulator
 import Foundations.ADR.PincCdtSpacetime
+import Foundations.ADR.PosRatContractivity
 
 /-!
 # ADR Foundations Test
@@ -252,3 +253,15 @@ def test_pinc_cdt_spacetime : IO Unit := do
     IO.println "ADR-054: Prime-indexed NCG-CDT unified action density and spectral dimension test passed"
   else
     throw $ IO.Error.userError "ADR-054: PINC-CDT spacetime verification failed"
+
+def test_posrat_contractivity : IO Unit := do
+  let a1 : Foundations.ADR.PosRatContractivity.PosRat := ⟨4, 10, by decide⟩
+  let l1 : Foundations.ADR.PosRatContractivity.PosRat := ⟨9, 10, by decide⟩
+  let a2 : Foundations.ADR.PosRatContractivity.PosRat := ⟨0, 10, by decide⟩
+  let l2 : Foundations.ADR.PosRatContractivity.PosRat := ⟨9, 10, by decide⟩
+  let col_sum := Foundations.ADR.PosRatContractivity.column_sum_2 a1 l1 a2 l2
+  if Foundations.ADR.PosRatContractivity.is_contractive col_sum then
+    IO.println "ADR-055: Exact rational 1-norm matrix contractivity test passed"
+  else
+    throw $ IO.Error.userError "ADR-055: PosRat contractivity verification failed"
+

@@ -26,6 +26,7 @@ def main : IO UInt32 := do
   test_ace_petc_integration
   test_umc_pmro_regulator
   test_pinc_cdt_spacetime
+  test_posrat_contractivity
   exportAll
 
 
