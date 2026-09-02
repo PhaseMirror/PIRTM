@@ -591,4 +591,43 @@ mod tests {
         assert_eq!(result["daemon_status"], "ACTIVE");
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
     }
+
+    #[tokio::test]
+    async fn test_daemon_process_request_compile_valid_header_delimiter() {
+        let state = Arc::new(Mutex::new(DaemonState {
+            runtime: Runtime::new(RuntimeConfig {
+                dry_run: true,
+                jid_enabled: false,
+                ledger_enabled: true,
+                enforce_bounds: true,
+                input_args: vec![],
+            }),
+            session_count: 0,
+        }));
+
+        let header_delimited_source = r#"
+        let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
+        let lambdas = ((9, 10), (9, 10));
+        ---
+        fn main() -> i64 {
+            return 42;
+        }
+        "#;
+
+        let req = DaemonRequest {
+            id: 107,
+            method: "compile".to_string(),
+            params: json!({
+                "source": header_delimited_source,
+                "name": "test_contract",
+                "theorem_name": "Foundations.ADR.BoundedIteration.iterate_non_expansive"
+            }),
+        };
+
+        let resp = process_request(req, state).await;
+        assert_eq!(resp.id, 107);
+        assert!(resp.error.is_none());
+        let result = resp.result.unwrap();
+        assert_eq!(result["status"], "COMPILED");
+    }
 }
