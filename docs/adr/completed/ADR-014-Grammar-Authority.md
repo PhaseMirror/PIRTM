@@ -47,3 +47,9 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
 5. **Envelope-Only Pest Quarantine**:
    - `pirtm.pest` is strictly envelope-only (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`). Legacy control flow tokens (`if`, `loop`, `fn`, `struct`) are completely removed from Pest.
    - Application control flow is parsed exclusively by `pirtm-parser` (Pratt parser) and lowered to MLIR, ensuring complete quarantine across all grammar layers.
+
+6. **v2.0.0 Decoupled Two-Parser Execution Architecture**:
+   - At v2.0.0 unification, `pirtmd` runs a **Decoupled Two-Parser Architecture**:
+     1. **Packaging Envelope Parser (Pest)**: Parses module metadata header (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`) into formal envelope AST nodes.
+     2. **Application Logic Parser (Pratt `pirtm-parser`)**: Parses application logic (`fn`, `struct`, `loop`, `match`) and lowers to MLIR.
+   - `pirtmd` does NOT force a single concatenated Pest grammar containing application `fn` rules. The envelope spec and application parser remain decoupled layers.

@@ -23,4 +23,9 @@ matrix_decl  = { kw_matrix ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 lambdas_decl = { kw_lambdas ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 theorem_decl = { kw_theorem ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 
-expr = { ident | integer | float }
+// Exact Rational Tuple Value Grammar (PosRat in Q)
+tuple_pair = { "(" ~ WHITESPACE* ~ integer ~ WHITESPACE* ~ "," ~ WHITESPACE* ~ integer ~ WHITESPACE* ~ ")" }
+tuple_row  = { "(" ~ WHITESPACE* ~ tuple_pair ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ tuple_pair)* ~ WHITESPACE* ~ ")" }
+matrix_val = { "(" ~ WHITESPACE* ~ tuple_row ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ tuple_row)* ~ WHITESPACE* ~ ")" }
+
+expr = { matrix_val | tuple_row | tuple_pair | ident | integer | float }
