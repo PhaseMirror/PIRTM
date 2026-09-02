@@ -486,6 +486,9 @@ impl Parser {
                 };
                 let name = match self.next() {
                     Some(Token::Ident(id)) => id,
+                    Some(Token::Matrix) => "matrix".to_string(),
+                    Some(Token::Lambdas) => "lambdas".to_string(),
+                    Some(Token::Theorem) => "theorem".to_string(),
                     other => return Err(format!("Expected identifier after let, got {:?}", other)),
                 };
                 self.expect(Token::Equal)?;

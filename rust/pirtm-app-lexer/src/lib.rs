@@ -14,6 +14,9 @@ pub enum Token {
     #[token("else")] Else,
     #[token("return")] Return,
     #[token("ensemble")] Ensemble,
+    #[token("matrix")] Matrix,
+    #[token("lambdas")] Lambdas,
+    #[token("theorem")] Theorem,
     #[token("use")] Use,
     #[token("extern")] Extern,
     #[token("struct")] Struct,
@@ -102,5 +105,15 @@ mod tests {
         assert_eq!(tokens[0], Token::Let);
         assert_eq!(tokens[1], Token::Mut);
         assert_eq!(tokens[2], Token::Ident("x".to_string()));
+    }
+
+    #[test]
+    fn test_lex_packaging_reserved_tokens() {
+        let source = "ensemble matrix lambdas theorem";
+        let tokens = tokenize(source);
+        assert_eq!(tokens[0], Token::Ensemble);
+        assert_eq!(tokens[1], Token::Matrix);
+        assert_eq!(tokens[2], Token::Lambdas);
+        assert_eq!(tokens[3], Token::Theorem);
     }
 }
