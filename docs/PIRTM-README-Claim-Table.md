@@ -1,12 +1,17 @@
 # PIRTM Grounded Status & Claim Table
 
-**Last Audited:** 2026-09-01  
-**Audit SHA-256:** `1351058b1c21f82ebe6c5467d906aa94da2f81e2dbaae0676c148349715b6a08`
+**Last Audited:** 2026-09-02
+**Audit SHA-256:** `4725b114c34a6eab3a85968efaf0b43c0d1e6d5fe752570b1fcb0ff2203da09b`
+**Last code SHA referenced:** `bc258d499b9f7daa37cb829e1e1639680932e253`
 
 This table reflects the ground-truth status of all PIRTM/MOC components, replacing aspirational statements with verifiable status indicators. Every "✅ Complete" claim must link to an existing, verifiable test or physical artifact on tree.
 
+Step 2 (2026-09-02): two rows added or corrected for defects exposed by README demotion `8c15767` and Lean rename `bc258d49`. Existing data rows below the two Step-2 rows are unchanged in this commit.
+
 | Subsystem / Feature | Claimed Status | Verified On-Tree Status | Verifying Test / Artifact |
 |---|---|---|---|
+| **Poseidon2 ZK Soundness (ADR-049)** | Formal Invariant | ❌ Defect | Lean identifiers renamed to `receipt_flag_conjunction` / `receipt_flag_conjunction_of_hyps` in `bc258d49`. Module records author-set Bool flags. Not a sponge, field, constraint system, or knowledge soundness. ADR-053 remains Proposed. |
+| **ADR Suite 001–050 as a closed set** | 100% Verified | ⚠️ Partial | Markdown and Lean modules exist. Not a closed suite. README unclaimed this set on `8c15767`. Job-count claims in docs disagree. This row does not demote other Complete rows in this table. |
 | **Lexer & Parser** | Production-Grade | ✅ Complete | `pirtm-parser/tests/test_json_parser.rs` (17/17 top-level constructs) |
 | **MLIR Dialect & Lowering** | Production-Grade | ✅ Complete | `examples/json_parser.mlir` generated via `pirtm compile` |
 | **Mutable State (`let mut`, `=`)** | Verified | ✅ Complete | `pirtm-mlir/src/pirtm/transpiler/visitor.rs` (Stack alloca/store/load) |
@@ -48,6 +53,7 @@ This table reflects the ground-truth status of all PIRTM/MOC components, replaci
 - ✅ Complete — physically on-tree, tested, no open ADR defects.
 - ⚠️ Partial — on-tree but has open defects documented in ADR-018 through ADR-030.
 - ⏳ In Progress — implementation exists but requires additional infrastructure (e.g., LLVM toolchain in CI).
+- ❌ Defect — named theorem or suite claim does not match on-tree predicate (ADR-053 pending for remaining tautologies).
 - ❌ Broken — claims complete status but has critical defects or is simulated.
 
 ## Audit Protocol
@@ -56,3 +62,5 @@ No claim may be marked "✅ Complete" unless:
 1. The code physically exists on the current tree.
 2. Tests pass without `sorry`, mocks, or unverified heuristics.
 3. No open ADR (018–030) identifies a blocking defect for that claim.
+
+Step 2 does not rewrite historical Complete marks on rows other than the two Step-2 rows above.
