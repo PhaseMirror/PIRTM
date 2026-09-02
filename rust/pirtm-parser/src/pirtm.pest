@@ -9,26 +9,18 @@ item_path = { ident ~ ("::" ~ ident)* }
 
 // Packaging Envelope Keywords (Pest Packaging Authority - ADR-014)
 kw_ensemble = { "ensemble" }
-kw_matrix = { "matrix" }
-kw_lambdas = { "lambdas" }
-kw_theorem = { "theorem" }
-kw_use = { "use" }
+kw_matrix   = { "matrix" }
+kw_lambdas  = { "lambdas" }
+kw_theorem  = { "theorem" }
+kw_use      = { "use" }
 
-program = { SOI ~ (ensemble_decl | import_stmt | matrix_decl | lambdas_decl | theorem_decl | statement)* ~ EOI }
+program      = { SOI ~ (ensemble_decl | import_stmt | matrix_decl | lambdas_decl | theorem_decl)* ~ EOI }
 ensemble_decl = { kw_ensemble ~ WHITESPACE+ ~ ident ~ WHITESPACE* ~ version }
-import_stmt = { kw_use ~ WHITESPACE+ ~ ensemble_path ~ ("::" ~ item_path)? ~ (WHITESPACE+ "as" ~ WHITESPACE+ ident)? ~ (WHITESPACE+ "with" ~ WHITESPACE+ "spectral_budget" ~ WHITESPACE* "=" ~ WHITESPACE* float)? ~ ";" }
+import_stmt  = { kw_use ~ WHITESPACE+ ~ ensemble_path ~ ("::" ~ item_path)? ~ (WHITESPACE+ "as" ~ WHITESPACE+ ident)? ~ (WHITESPACE+ "with" ~ WHITESPACE+ "spectral_budget" ~ WHITESPACE* "=" ~ WHITESPACE* float)? ~ ";" }
 
-// Packaging Envelope Declarations
-matrix_decl = { kw_matrix ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
+// Packaging Envelope Declarations (Envelope-Only Grammar - ADR-014 Addendum)
+matrix_decl  = { kw_matrix ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 lambdas_decl = { kw_lambdas ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 theorem_decl = { kw_theorem ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 
-statement = { struct_stmt | enum_stmt | if_stmt | loop_stmt | fndef_stmt | expr_stmt }
-struct_stmt = { "struct" ~ WHITESPACE+ ~ ident ~ WHITESPACE* ~ "{" ~ WHITESPACE* ~ (ident ~ ":" ~ ident ~ ("," ~ WHITESPACE* ~ ident ~ ":" ~ ident)*)? ~ "}" }
-enum_stmt = { "enum" ~ WHITESPACE+ ~ ident ~ WHITESPACE* ~ "{" ~ WHITESPACE* ~ (ident ~ ("(" ~ ident ~ ")")? ~ ("," ~ WHITESPACE* ~ ident ~ ("(" ~ ident ~ ")")?)*)? ~ "}" }
-if_stmt = { "if" ~ WHITESPACE+ ~ expr ~ WHITESPACE* ~ block ~ (WHITESPACE* ~ "else" ~ WHITESPACE* ~ block)? }
-loop_stmt = { "loop" ~ WHITESPACE* ~ block | "while" ~ WHITESPACE+ ~ expr ~ WHITESPACE* ~ block }
-fndef_stmt = { "fn" ~ WHITESPACE+ ~ ident ~ WHITESPACE* ~ "(" ~ (ident ~ ("," ~ WHITESPACE* ~ ident)*)? ~ ")" ~ WHITESPACE* ~ block }
-expr = { ident } // Placeholder for expression parsing
-block = { "{" ~ WHITESPACE* ~ (statement ~ WHITESPACE*)* ~ "}" }
-expr_stmt = { expr ~ ";" }
+expr = { ident | integer | float }

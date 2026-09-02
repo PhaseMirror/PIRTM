@@ -43,3 +43,7 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
 4. **Execution Authority vs Reference Specification**:
    - `pirtm-parser` (`pirtm-app-lexer` + hand-written Pratt `Parser` in `pirtm-parser/src/lib.rs`) is the active production execution authority for application AST construction and MLIR lowering in Phase 1.
    - `pirtm.pest` is the formal reference specification for packaging envelope rules and is permitted to remain non-executing until the v2.0.0 parser unification milestone.
+
+5. **Envelope-Only Pest Quarantine**:
+   - `pirtm.pest` is strictly envelope-only (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`). Legacy control flow tokens (`if`, `loop`, `fn`, `struct`) are completely removed from Pest.
+   - Application control flow is parsed exclusively by `pirtm-parser` (Pratt parser) and lowered to MLIR, ensuring complete quarantine across all grammar layers.
