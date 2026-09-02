@@ -29,6 +29,7 @@ pub enum Token {
     #[token("continue")] Continue,
 
     #[token("+")] Plus,
+    #[token("---")] HeaderDelim,
     #[token("-")] Minus,
     #[token("*")] Star,
     #[token("/")] Slash,

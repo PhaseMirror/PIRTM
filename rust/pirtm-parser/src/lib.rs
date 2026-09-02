@@ -520,10 +520,8 @@ impl Parser {
                 if self.peek() == Some(Token::Semicolon) { self.next(); }
                 Ok(Stmt::Continue)
             }
-            Some(Token::Minus) => {
-                while self.peek() == Some(Token::Minus) {
-                    self.next();
-                }
+            Some(Token::HeaderDelim) => {
+                self.next();
                 self.parse_statement()
             }
             Some(Token::Match) => {
