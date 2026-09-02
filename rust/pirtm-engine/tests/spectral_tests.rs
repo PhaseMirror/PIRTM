@@ -1,76 +1,67 @@
-use pirtm_engine::spectral::{self, Ensemble};
+use pirtm_engine::spectral::{self, Ensemble, PosRat};
+
+fn q(n: u64, d: u64) -> PosRat {
+    PosRat::new(n, d).unwrap()
+}
 
 #[test]
 fn test_small_gain_pipeline_accepted() {
-    // 3-stage linear feedforward pipeline (strictly upper triangular, ρ = 0)
-    let ensemble = Ensemble::new(
+    // Feedforward: ||G||_1 = 4/5 < 1
+    let ensemble = Ensemble::from_rationals(
         "pipeline_3",
         vec![
-            vec![0.0, 1.0, 0.0],
-            vec![0.0, 0.0, 1.0],
-            vec![0.0, 0.0, 0.0],
+            vec![q(0, 1), q(1, 1), q(0, 1)],
+            vec![q(0, 1), q(0, 1), q(1, 1)],
+            vec![q(0, 1), q(0, 1), q(0, 1)],
         ],
-        vec![0.8, 0.8, 0.8],
+        vec![q(4, 5), q(4, 5), q(4, 5)],
     );
 
-    let rho = spectral::check_small_gain(&ensemble, 1e-6).expect("Pipeline should pass");
-    assert!(rho < 1e-5, "Pipeline spectral radius should be 0, got {}", rho);
+    let n1 = spectral::check_small_gain(&ensemble, 0.0).expect("Pipeline should pass");
+    assert!((n1 - 0.8).abs() < 1e-12);
 }
 
 #[test]
 fn test_small_gain_contractive_feedback_accepted() {
-    // Cyclic 2-node feedback loop with contractive loop gain:
-    // A_01 = 0.5, A_10 = 0.5, λ_0 = 0.8, λ_1 = 0.8
-    // G = [[0, 0.4], [0.4, 0]]
-    // ρ(G) = 0.4 < 1.0
-    let ensemble = Ensemble::new(
+    // Retuned pass: A = [[0, 2/5], [2/5, 0]], λ = (9/10, 9/10), ||G||_1 = 9/25
+    let ensemble = Ensemble::from_rationals(
         "contractive_loop",
-        vec![
-            vec![0.0, 0.5],
-            vec![0.5, 0.0],
-        ],
-        vec![0.8, 0.8],
+        vec![vec![q(0, 1), q(2, 5)], vec![q(2, 5), q(0, 1)]],
+        vec![q(9, 10), q(9, 10)],
     );
 
-    let rho = spectral::check_small_gain(&ensemble, 1e-4).expect("Contractive feedback loop should pass");
-    assert!((rho - 0.4).abs() < 1e-4, "Expected rho = 0.4, got {}", rho);
+    let n1 = spectral::check_small_gain(&ensemble, 0.0).expect("Contractive loop should pass");
+    assert!((n1 - 0.36).abs() < 1e-12);
 }
 
 #[test]
 fn test_small_gain_resonant_feedback_rejected() {
-    // Resonant 2-node feedback loop:
-    // A_01 = 1.2, A_10 = 1.0, λ_0 = 0.95, λ_1 = 0.95
-    // G = [[0, 1.14], [0.95, 0]]
-    // ρ(G) = sqrt(1.14 * 0.95) = sqrt(1.083) = 1.04067 >= 1.0
-    let ensemble = Ensemble::new(
+    // Retired ρ=0.9 fixture: ||G||_1 = 9/5 >= 1
+    let ensemble = Ensemble::from_rationals(
         "resonant_loop",
-        vec![
-            vec![0.0, 1.2],
-            vec![1.0, 0.0],
-        ],
-        vec![0.95, 0.95],
+        vec![vec![q(0, 1), q(2, 1)], vec![q(1, 2), q(0, 1)]],
+        vec![q(9, 10), q(9, 10)],
     );
 
-    let res = spectral::check_small_gain(&ensemble, 1e-4);
-    assert!(res.is_err(), "Resonant loop must be rejected");
+    let res = spectral::check_small_gain(&ensemble, 0.0);
+    assert!(res.is_err(), "||G||_1 >= 1 must be rejected");
     let err = res.unwrap_err();
-    assert!(err.contains("SIG_GOV_KILL"));
+    assert!(err.contains("NormContractivityViolation"));
+    assert!(!err.contains("SIG_GOV_KILL"));
 }
 
 #[test]
 fn test_runtime_validate_and_certify() {
-    let ensemble = Ensemble::new(
+    let ensemble = Ensemble::from_rationals(
         "certified_ensemble",
-        vec![
-            vec![0.0, 0.3],
-            vec![0.3, 0.0],
-        ],
-        vec![0.5, 0.5],
+        vec![vec![q(0, 1), q(2, 5)], vec![q(2, 5), q(0, 1)]],
+        vec![q(9, 10), q(9, 10)],
     )
     .with_theorem_name("author_declared_lambda");
 
-    let receipt = spectral::validate_and_certify(&ensemble, 1e-6).expect("Validation must succeed");
-    assert!(receipt.is_stable);
+    let receipt = spectral::validate_and_certify(&ensemble, 0.0).expect("Validation must succeed");
+    assert!(receipt.is_norm_contractive);
+    assert_eq!(receipt.exact_rational_norm_1, (9, 25));
     assert_eq!(receipt.dimension, 2);
     assert!(!receipt.hash.is_empty());
     assert_eq!(receipt.theorem_name, "author_declared_lambda");
@@ -79,15 +70,12 @@ fn test_runtime_validate_and_certify() {
 
 #[test]
 fn test_runtime_validate_rejects_missing_theorem_name() {
-    let ensemble = Ensemble::new(
+    let ensemble = Ensemble::from_rationals(
         "uncertified_ensemble",
-        vec![
-            vec![0.0, 0.3],
-            vec![0.3, 0.0],
-        ],
-        vec![0.5, 0.5],
+        vec![vec![q(0, 1), q(2, 5)], vec![q(2, 5), q(0, 1)]],
+        vec![q(9, 10), q(9, 10)],
     );
 
-    let err = spectral::validate_and_certify(&ensemble, 1e-6).expect_err("empty theorem_name must fail");
+    let err = spectral::validate_and_certify(&ensemble, 0.0).expect_err("empty theorem_name must fail");
     assert!(err.contains("MissingTheoremAnchor"));
 }

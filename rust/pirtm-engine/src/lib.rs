@@ -12,7 +12,7 @@ use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::process::{Command, Stdio};
 use std::io::Write;
-pub use spectral::{Ensemble, EnsembleContractivityReceipt, EnsembleError, check_small_gain, validate_and_certify};
+pub use spectral::{Ensemble, EnsembleContractivityReceipt, EnsembleError, PosRat, check_small_gain, validate_and_certify};
 pub use governance::Sentinel;
 pub use http_server::{GovernedHttpServer, GovernedHttpResponse};
 
@@ -46,7 +46,6 @@ impl Runtime {
         }
     }
 
-    /// Load an ensemble configuration from a JSON file.
     pub fn load_ensemble(&self, path: &Path) -> Result<Ensemble, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(path)?;
         let ensemble: Ensemble = serde_json::from_str(&content)?;
@@ -54,14 +53,14 @@ impl Runtime {
     }
 
     pub fn validate_ensemble(&self, ensemble: &Ensemble) -> Result<EnsembleContractivityReceipt, String> {
-        let cert = spectral::validate_and_certify(ensemble, 1e-6)?;
+        let cert = spectral::validate_and_certify(ensemble, 0.0)?;
         println!(
             "AUDIT EVENT: ensemble_validated - {}",
             json!({
                 "ensemble_name": cert.ensemble_name,
                 "dimension": cert.dimension,
-                "spectral_radius": cert.spectral_radius,
-                "is_stable": cert.is_stable,
+                "exact_rational_norm_1": cert.exact_rational_norm_1,
+                "is_norm_contractive": cert.is_norm_contractive,
                 "receipt_hash": cert.hash,
                 "theorem_name": cert.theorem_name,
             })
@@ -100,7 +99,7 @@ impl Runtime {
         }
 
         let mlir_path = self.mlir_path.as_ref().ok_or("No module loaded")?;
-        
+
         let ll_path = mlir_path.with_extension("ll");
         let obj_path = mlir_path.with_extension("o");
         let bin_path = mlir_path.with_extension("bin");
@@ -111,7 +110,7 @@ impl Runtime {
             .arg("-o")
             .arg(&ll_path)
             .status()?;
-        
+
         if !mlir_status.success() {
             return Err(format!("mlir-translate failed with status: {}", mlir_status).into());
         }
