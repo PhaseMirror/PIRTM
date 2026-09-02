@@ -199,12 +199,12 @@ def test_ward_monitor_lyapunov_stability : IO Unit := do
   else
     throw $ IO.Error.userError "ADR-048: WardMonitor Lyapunov stability check failed"
 
-def test_poseidon2_soundness : IO Unit := do
+def test_poseidon2_receipt_flags : IO Unit := do
   let receipt : Poseidon2Receipt := { constraintCount := 5087, isValid := true }
-  if verifyPoseidon2Receipt receipt then
-    IO.println "ADR-049: Poseidon2 ZK-SNARK circuit proof soundness test passed"
+  if receipt_flag_conjunction receipt then
+    IO.println "ADR-049: receipt_flag_conjunction holds on author-set flags (not ZK soundness)"
   else
-    throw $ IO.Error.userError "ADR-049: Poseidon2 ZK receipt verification failed"
+    throw $ IO.Error.userError "ADR-049: receipt_flag_conjunction failed on author-set flags"
 
 def test_distributed_governance_consensus : IO Unit := do
   let metrics : ClusterMetrics := { totalNodes := 3, passVotes := 3, killVotes := 0, quorumThreshold := 2 }
@@ -252,5 +252,3 @@ def test_pinc_cdt_spacetime : IO Unit := do
     IO.println "ADR-054: Prime-indexed NCG-CDT unified action density and spectral dimension test passed"
   else
     throw $ IO.Error.userError "ADR-054: PINC-CDT spacetime verification failed"
-
-

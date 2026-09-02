@@ -20,7 +20,7 @@ def main : IO UInt32 := do
   test_goldilocks_preservation
   test_sentinel_never_kills_admissible
   test_ward_monitor_lyapunov_stability
-  test_poseidon2_soundness
+  test_poseidon2_receipt_flags
   test_distributed_governance_consensus
   test_installation_protocol_soundness
   test_ace_petc_integration
