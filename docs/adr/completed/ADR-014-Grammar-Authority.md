@@ -58,3 +58,8 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
    - The Pest envelope parser processes statements (`ensemble`, `matrix`, `lambdas`, `theorem`, `use`) until encountering the first non-packaging statement (e.g., `fn`, `struct`) or an explicit `---` header delimiter.
    - `theorem_decl` accepts formal string literals or qualified Lean theorem path identifiers (`theorem_anchor`).
    - Both `let matrix = ...;` and `matrix = ...;` syntax forms are recognized by `pirtm.pest` to ensure seamless transition between Phase 1 and Phase 2.
+
+8. **Deterministic Header Delimiter Specification**:
+   - For files containing both packaging envelopes and application code bodies, `---` is the mandatory deterministic header delimiter rule (`header_delimiter = { "---" }`).
+   - Files lacking `---` are evaluated as header-only packaging envelope files (`header_only_file = { SOI ~ envelope_decls ~ EOI }`).
+   - This eliminates all lexer ambiguity regarding identifiers or implicit keyword cuts.

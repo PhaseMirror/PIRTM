@@ -17,8 +17,9 @@ kw_theorem  = { "theorem" }
 kw_use      = { "use" }
 header_delimiter = { "---" }
 
-envelope_header = { SOI ~ (ensemble_decl | import_stmt | matrix_decl | lambdas_decl | theorem_decl)* ~ header_delimiter? }
-program         = { envelope_header ~ EOI }
+envelope_header  = { SOI ~ (ensemble_decl | import_stmt | matrix_decl | lambdas_decl | theorem_decl)* ~ header_delimiter }
+header_only_file = { SOI ~ (ensemble_decl | import_stmt | matrix_decl | lambdas_decl | theorem_decl)* ~ EOI }
+program          = { envelope_header | header_only_file }
 
 ensemble_decl = { kw_ensemble ~ WHITESPACE+ ~ ident ~ WHITESPACE* ~ version }
 import_stmt  = { kw_use ~ WHITESPACE+ ~ ensemble_path ~ ("::" ~ item_path)? ~ (WHITESPACE+ "as" ~ WHITESPACE+ ident)? ~ (WHITESPACE+ "with" ~ WHITESPACE+ "spectral_budget" ~ WHITESPACE* "=" ~ WHITESPACE* float)? ~ ";" }
