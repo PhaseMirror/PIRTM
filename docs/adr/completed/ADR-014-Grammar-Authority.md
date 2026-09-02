@@ -32,8 +32,9 @@ To maintain zero-drift alignment between compiler IPC daemons (`pirtmd`), client
    - String scanning, comment-scraping, and canned $2\times 2$ fallback matrices are strictly prohibited.
    - Exact rational small-gain evaluation operates exclusively via `Ensemble::from_rationals` over reduced `PosRat` in $\mathbb{Q}$.
 
-2. **Phase 2 L0 Grammar Production (Roadmap for v2.0.0)**:
-   - Dedicated first-class keywords (`matrix`, `lambdas`, `theorem`) will be formalized in the EBNF / tree-sitter kernel grammar as explicit AST statement variants (`Stmt::MatrixDecl`, `Stmt::LambdasDecl`, `Stmt::TheoremAnchor`).
+2. **Phase 2 Packaging Grammar Production (Roadmap for v2.0.0)**:
+   - First-class packaging keywords (`matrix`, `lambdas`, `theorem`) belong strictly to the **Pest Packaging Grammar** alongside `ensemble` and `use`. They define module-level gain boundaries and Lean theorem anchor links.
+   - The **Tree-Sitter Kernel Authority** remains strictly reserved for pure mathematical L0 operations (`tensor`, `|>`, `assert_contractive`, `p_N`, `\Lambda_m`). This eliminates dual-root syntax ambiguity.
 
 3. **Decoupling from ADR-055 Sunset**:
    - The ADR-055 hard sunset (`2026-10-01` / `v1.0.1-mvp`) strictly mandates the total deletion of `Ensemble::new(f64)` in favor of exact rational constructors in $\mathbb{Q}$.
