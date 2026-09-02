@@ -23,6 +23,7 @@ import Foundations.ADR.AcePetcIntegration
 import Foundations.ADR.UmcPmroRegulator
 import Foundations.ADR.PincCdtSpacetime
 import Foundations.ADR.PosRatContractivity
+import Foundations.ADR.CollaborativeCRDT
 
 /-!
 # ADR Foundations Test
@@ -48,6 +49,17 @@ open PIRTM.DistributedGovernance
 open PIRTM.InstallationProtocol
 open PIRTM.AcePetcIntegration
 open PIRTM.UmcPmroRegulator
+open Foundations.ADR.CollaborativeCRDT
+
+def test_collaborative_crdt : IO Unit := do
+  let s1 : CrdtState := ⟨{ alice := 1, bob := 0 }, 1, 2, by decide⟩
+  let s2 : CrdtState := ⟨{ alice := 0, bob := 2 }, 3, 5, by decide⟩
+  let m1 := merge s1 s2
+  let m2 := merge s2 s1
+  if m1.clock == m2.clock && m1.normNum == m2.normNum && m1.normDen == m2.normDen && isContractive m1 then
+    IO.println "ADR-056: Collaborative CRDT convergence and governance preservation test passed"
+  else
+    throw $ IO.Error.userError "ADR-056: CRDT convergence or governance preservation failed"
 open PIRTM.PincCdtSpacetime
 
 def test_accepted_immutable : IO Unit := do
@@ -205,7 +217,7 @@ def test_poseidon2_receipt_flags : IO Unit := do
 
 def test_distributed_governance_consensus : IO Unit := do
   let metrics : ClusterMetrics := { totalNodes := 3, passVotes := 3, killVotes := 0, quorumThreshold := 2 }
-  if isQuorumReached metrics then
+  if isQuorumReachedMetrics metrics then
     IO.println "ADR-050: Multi-node distributed governance consensus test passed"
   else
     throw $ IO.Error.userError "ADR-050: Cluster consensus quorum check failed"

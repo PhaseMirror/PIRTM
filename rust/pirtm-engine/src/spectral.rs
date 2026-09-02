@@ -556,4 +556,17 @@ mod kani_harnesses {
             kani::assert(num * q == p * den, "reduction preserves value");
         }
     }
+
+    #[kani::proof]
+    fn proof_posrat_lt_one_soundness() {
+        let p: u64 = kani::any();
+        let q: u64 = kani::any();
+        kani::assume(q > 0);
+        kani::assume(p < 1000);
+        kani::assume(q < 1000);
+        if let Ok(rat) = PosRat::new(p, q) {
+            let is_lt = rat.lt_one();
+            kani::assert(is_lt == (rat.num < rat.den), "lt_one equivalence holds");
+        }
+    }
 }

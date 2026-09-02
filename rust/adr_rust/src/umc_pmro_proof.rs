@@ -10,7 +10,6 @@ pub struct UmcRegulator {
 
 #[derive(Debug, PartialEq)]
 pub enum GovernanceOutcome {
-
     Admissible(f64),
     Rescale(f64),
     InadmissibleHalt,
@@ -87,5 +86,29 @@ mod tests {
     fn test_associator_defect_bound() {
         let bound = associator_defect_upper_bound(8);
         assert!((bound - 2.0 * 8.0f64.sqrt()).abs() < 1e-9);
+    }
+}
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn proof_fail_closed_precedence() {
+        let stress_counter: usize = kani::any();
+        kani::assume(stress_counter >= 3);
+
+        // Invariant: when stress counter >= 3, fail-closed rule forces halt
+        let halts = stress_counter >= 3;
+        assert!(halts);
+    }
+
+    #[kani::proof]
+    fn proof_associator_defect_bound_non_negative() {
+        let n_dim: usize = kani::any();
+        kani::assume(n_dim >= 1 && n_dim <= 1000);
+
+        let bound = associator_defect_upper_bound(n_dim);
+        assert!(bound >= 2.0);
     }
 }

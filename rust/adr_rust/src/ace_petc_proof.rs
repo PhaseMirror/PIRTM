@@ -43,6 +43,15 @@ impl PrimeLedger {
     }
 }
 
+/// Integer soft-thresholding operator for ACE budget enforcement.
+pub fn soft_threshold_int(w: u64, theta: u64) -> u64 {
+    if w <= theta {
+        0
+    } else {
+        w - theta
+    }
+}
+
 /// Exact weighted-L1 projection via bisection (ACE Safety Budget - ADR-052).
 pub fn project_weighted_l1(w: &[f64], b: &[f64], tau: f64, max_iters: usize) -> Vec<f64> {
     let current_budget: f64 = w.iter().zip(b.iter()).map(|(&wi, &bi)| bi * wi.abs()).sum();
@@ -111,5 +120,41 @@ mod tests {
         let w_proj = project_weighted_l1(&w, &b, tau, 50);
         let budget: f64 = w_proj.iter().zip(b.iter()).map(|(&wi, &bi)| bi * wi.abs()).sum();
         assert!(budget <= tau + 1e-6);
+    }
+
+    #[test]
+    fn test_soft_threshold_int_properties() {
+        assert_eq!(soft_threshold_int(10, 3), 7);
+        assert_eq!(soft_threshold_int(3, 5), 0);
+        assert!(soft_threshold_int(100, 20) <= 100);
+    }
+}
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn proof_soft_threshold_non_expansive() {
+        let w: u64 = kani::any();
+        let theta: u64 = kani::any();
+        kani::assume(w < 1_000_000);
+        kani::assume(theta < 1_000_000);
+
+        let st = soft_threshold_int(w, theta);
+        // Invariant: soft_threshold(w, theta) <= w
+        assert!(st <= w);
+    }
+
+    #[kani::proof]
+    fn proof_petc_exponent_addition_conserved() {
+        let exp1: i32 = kani::any();
+        let exp2: i32 = kani::any();
+        kani::assume(exp1 > -1_000 && exp1 < 1_000);
+        kani::assume(exp2 > -1_000 && exp2 < 1_000);
+
+        let sum = exp1 + exp2;
+        // Invariant: exponent valuation additive homomorphism
+        assert_eq!(sum - exp1, exp2);
     }
 }

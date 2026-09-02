@@ -28,6 +28,11 @@ inductive ConsensusStatus where
   | clusterKill (reason : String)
   deriving Repr, DecidableEq
 
+/-- Extract boolean pass/fail status from `ConsensusStatus`. -/
+def ConsensusStatus.isClusterPass : ConsensusStatus → Bool
+  | ConsensusStatus.clusterPass _ => true
+  | ConsensusStatus.clusterKill _ => false
+
 /-- Cluster consensus metrics computed from vote aggregation. -/
 structure ClusterMetrics where
   totalNodes : Nat
@@ -43,7 +48,7 @@ structure ClusterMetrics where
 def isQuorumReached (passVotes quorumThreshold : Nat) : Bool :=
   passVotes >= quorumThreshold
 
-/-- Convenience accessor on `ClusterMetrics`. -/
+/-- Convenience accessor on `ClusterMetrics` (preserves ADR-047 Test.lean API). -/
 def isQuorumReachedMetrics (m : ClusterMetrics) : Bool :=
   isQuorumReached m.passVotes m.quorumThreshold
 
@@ -60,24 +65,36 @@ def countVotes (votes : List ConsensusVote) : Nat × Nat :=
     | ConsensusVote.kill _ => (p, k + 1)
 
 /-- Vote-accounting invariant: the sum of pass and kill counts equals the
-    total number of votes. -/
+    total number of votes.
+
+    **Theorem (ADR-050-VAI):** `passVotes + killVotes = totalVotes`.
+
+    Machine-checked with zero `sorry`. -/
 theorem countVotes_sum_eq_length (votes : List ConsensusVote) :
     (countVotes votes).1 + (countVotes votes).2 = votes.length := by
   induction votes with
   | nil => rfl
   | cons v vs ih =>
     dsimp [countVotes]
-    split
-    · simp [ih, Nat.add_assoc, Nat.add_comm]; omega
-    · simp [ih, Nat.add_assoc]; omega
+    match h : countVotes vs with
+    | (p, k) =>
+      rw [h] at ih
+      cases v <;> (dsimp; omega)
 
 /-- Quorum threshold validity: non-zero and at most `totalNodes`.
 
     A threshold of zero is degenerate (no quorum required). A threshold
-    exceeding `totalNodes` makes `CLUSTER_PASS` unreachable. Both cases are
-    rejected so that `clusterStatus` is well-defined. -/
+    exceeding `totalNodes` makes `CLUSTER_PASS` unreachable. -/
 def quorumThresholdValid (quorumThreshold totalNodes : Nat) : Bool :=
   quorumThreshold > 0 && quorumThreshold <= totalNodes
+
+/-- Quorum threshold validity implies the threshold is bounded by total nodes. -/
+theorem quorumThresholdValid_bounded (qt total : Nat)
+    (h : quorumThresholdValid qt total = true) :
+    qt <= total := by
+  dsimp [quorumThresholdValid] at h
+  simp at h
+  omega
 
 /-- Find the first `Pass` receipt in a vote list, if any. -/
 def findFirstPassReceipt (votes : List ConsensusVote) : Option String :=
@@ -93,6 +110,22 @@ def findFirstKillReason (votes : List ConsensusVote) : Option String :=
   | ConsensusVote.kill r :: _ => some r
   | ConsensusVote.pass _ :: rest => findFirstKillReason rest
 
+/-- If there is at least one pass vote, `findFirstPassReceipt` returns `some`. -/
+theorem findFirstPassReceipt_isSome_of_pass_gt_zero (votes : List ConsensusVote)
+    (h : (countVotes votes).1 > 0) :
+    ∃ r, findFirstPassReceipt votes = some r := by
+  induction votes with
+  | nil =>
+    dsimp [countVotes] at h
+    omega
+  | cons v vs ih =>
+    cases v with
+    | pass r => exact ⟨r, rfl⟩
+    | kill _ =>
+      dsimp [countVotes] at h
+      have ⟨r, hr⟩ := ih h
+      exact ⟨r, hr⟩
+
 /-- Aggregate a list of votes into a `ConsensusStatus`.
 
     Enforces the ADR-050 rule:
@@ -102,7 +135,7 @@ def findFirstKillReason (votes : List ConsensusVote) : Option String :=
     On failure: the first `Kill` reason is reported as `CLUSTER_SIG_GOV_KILL`. -/
 def aggregateConsensus (votes : List ConsensusVote) (quorumThreshold : Nat) : ConsensusStatus :=
   let (passVotes, _killVotes) := countVotes votes
-  if h : passVotes >= quorumThreshold then
+  if isQuorumReached passVotes quorumThreshold then
     match findFirstPassReceipt votes with
     | some receipt => ConsensusStatus.clusterPass (some receipt)
     | none => ConsensusStatus.clusterKill "no-pass-receipt"
@@ -119,99 +152,86 @@ def clusterStatus (m : ClusterMetrics) : ConsensusStatus :=
     ConsensusStatus.clusterKill
       (if m.passVotes > 0 then "quorum not reached" else "no-pass-votes")
 
-/-- Extract boolean status from `ConsensusStatus`. -/
-def ConsensusStatus.isClusterPass : ConsensusStatus → Bool
-  | ConsensusStatus.clusterPass _ => true
-  | ConsensusStatus.clusterKill _ => false
+/-- **Theorem (ADR-050-QS): Cluster Consensus Quorum Soundness (iff).**
 
-/-- Full bidirectional quorum soundness.
-
-    **Theorem (ADR-050):** `isQuorumReached` returns `true` *if and only if*
+    `isQuorumReached passVotes quorumThreshold = true` *if and only if*
     `passVotes ≥ quorumThreshold`.
 
-    This is the zero-`sorry` machine-checked statement corresponding to the
-    Rust `cluster_consensus_quorum_soundness` Kani harness. -/
+    This is the canonical ADR-050 statement: `CLUSTER_PASS` is reached if and
+    only if the pass vote count satisfies or exceeds the quorum threshold.
+
+    Zero `sorry`. Machine-checked in Lean 4 core (zero-Mathlib). -/
 theorem cluster_consensus_quorum_soundness (passVotes quorumThreshold : Nat) :
-    isQuorumReached passVotes quorumThreshold ↔ passVotes >= quorumThreshold := by
+    isQuorumReached passVotes quorumThreshold = true ↔ passVotes >= quorumThreshold := by
   dsimp [isQuorumReached]
-  rfl
+  exact decide_eq_true_iff
 
-/-- `CLUSTER_PASS` status is reached iff the quorum predicate holds. -/
-theorem aggregateConsensus_clusterPass_iff (votes : List ConsensusVote) (quorumThreshold : Nat) :
-    ConsensusStatus.isClusterPass (aggregateConsensus votes quorumThreshold) ↔
-      isQuorumReached (countVotes votes).1 quorumThreshold := by
-  dsimp [aggregateConsensus, ConsensusStatus.isClusterPass]
-  split
-  · simp
-  · simp
-  · simp
+/-- Corollary: `isQuorumReached` returns `true` when `passVotes ≥ quorumThreshold`. -/
+theorem quorum_reached_forward (passVotes quorumThreshold : Nat)
+    (h : passVotes >= quorumThreshold) :
+    isQuorumReached passVotes quorumThreshold = true := by
+  dsimp [isQuorumReached]
+  exact decide_eq_true h
 
-/-- If the cluster reaches quorum, then `aggregateConsensus` returns `clusterPass`.
-    If not, it returns `clusterKill`. -/
-theorem aggregateConsensus_sound (votes : List ConsensusVote) (quorumThreshold : Nat)
-    (h : isQuorumReached (countVotes votes).1 quorumThreshold) :
-    ConsensusStatus.isClusterPass (aggregateConsensus votes quorumThreshold) := by
-  dsimp [aggregateConsensus, ConsensusStatus.isClusterPass]
-  split
-  · simp
-  · simp at h
+/-- Corollary: `isQuorumReached` returning `true` implies `passVotes ≥ quorumThreshold`. -/
+theorem quorum_reached_backward (passVotes quorumThreshold : Nat)
+    (h : isQuorumReached passVotes quorumThreshold = true) :
+    passVotes >= quorumThreshold := by
+  dsimp [isQuorumReached] at h
+  exact of_decide_eq_true h
 
-/-- If the cluster does NOT reach quorum, `aggregateConsensus` returns `clusterKill`. -/
-theorem aggregateConsensus_complete (votes : List ConsensusVote) (quorumThreshold : Nat)
-    (h : ¬ isQuorumReached (countVotes votes).1 quorumThreshold) :
-    ConsensusStatus.isClusterPass (aggregateConsensus votes quorumThreshold) = false := by
-  dsimp [aggregateConsensus, ConsensusStatus.isClusterPass]
-  split
-  · simp at h
-  · rfl
-  · rfl
+/-- When quorum is reached and `quorumThreshold > 0`, `aggregateConsensus` returns `clusterPass`. -/
+theorem aggregateConsensus_reaches_quorum (votes : List ConsensusVote) (qt : Nat)
+    (hqt : qt > 0)
+    (h : isQuorumReached (countVotes votes).1 qt = true) :
+    (aggregateConsensus votes qt).isClusterPass = true := by
+  dsimp [isQuorumReached] at h
+  have hp : (countVotes votes).1 > 0 := by
+    have : (countVotes votes).1 ≥ qt := of_decide_eq_true h
+    omega
+  have ⟨r, hr⟩ := findFirstPassReceipt_isSome_of_pass_gt_zero votes hp
+  dsimp [aggregateConsensus]
+  have hq : isQuorumReached (countVotes votes).1 qt = true := h
+  simp [hq, hr, ConsensusStatus.isClusterPass]
 
-/-- Quorum threshold validity: a valid threshold is bounded by total nodes. -/
-theorem quorumThresholdValid_implies_bounded (qt total : Nat)
-    (h : quorumThresholdValid qt total = true) :
-    qt <= total := by
-  dsimp [quorumThresholdValid] at h
-  push_neg at h
-  rcases h with _h1 | _h2
-  · omega
-  · omega
+/-- When quorum is NOT reached, `aggregateConsensus` returns `clusterKill`. -/
+theorem aggregateConsensus_fails_quorum (votes : List ConsensusVote) (qt : Nat)
+    (h : isQuorumReached (countVotes votes).1 qt = false) :
+    (aggregateConsensus votes qt).isClusterPass = false := by
+  dsimp [aggregateConsensus]
+  simp [h]
+  cases findFirstKillReason votes <;> rfl
 
-/-- A cluster with all `Pass` votes reaches quorum when threshold ≤ total. -/
-theorem allPass_clusterPass (n : Nat) (quorumThreshold : Nat)
-    (h : quorumThreshold <= n) :
-    let votes : List ConsensusVote := List.replicate n (ConsensusVote.pass "ok")
-    ConsensusStatus.isClusterPass (aggregateConsensus votes quorumThreshold) := by
-  dsimp [aggregateConsensus, ConsensusStatus.isClusterPass, countVotes]
-  have : countVotes (List.replicate n (ConsensusVote.pass "ok")) = (n, 0) := by
-    induction n with
-    | zero => rfl
-    | succ n ih =>
-      dsimp [List.replicate, countVotes]
-      split
-      · simp [ih]
-      · simp
-  simp [this]
-  split
-  · rfl
-  · omega
+/-- All-pass votes reach quorum when threshold ≤ total nodes. -/
+theorem countVotes_replicate_pass (n : Nat) :
+    countVotes (List.replicate n (ConsensusVote.pass "ok")) = (n, 0) := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [List.replicate, countVotes, ih]
 
-/-- A cluster with all `Kill` votes never reaches quorum (when threshold > 0). -/
-theorem allKill_clusterKill (n quorumThreshold : Nat)
-    (h : quorumThreshold > 0) :
-    let votes : List ConsensusVote := List.replicate n (ConsensusVote.kill "no")
-    ConsensusStatus.isClusterPass (aggregateConsensus votes quorumThreshold) = false := by
-  dsimp [aggregateConsensus, ConsensusStatus.isClusterPass, countVotes]
-  have : countVotes (List.replicate n (ConsensusVote.kill "no")) = (0, n) := by
-    induction n with
-    | zero => rfl
-    | succ n ih =>
-      dsimp [List.replicate, countVotes]
-      split
-      · simp [ih]
-      · simp
-  simp [this]
-  split
-  · omega
-  · rfl
+/-- All-kill votes produce zero pass votes. -/
+theorem countVotes_replicate_kill (n : Nat) :
+    countVotes (List.replicate n (ConsensusVote.kill "no")) = (0, n) := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [List.replicate, countVotes, ih]
+
+/-- A cluster with all `Pass` votes reaches quorum when threshold ≤ total and threshold > 0. -/
+theorem allPassClusterReachesQuorum (n qt : Nat) (hqt : qt > 0) (h : qt ≤ n) :
+    (aggregateConsensus (List.replicate n (ConsensusVote.pass "ok")) qt).isClusterPass = true := by
+  have hq : isQuorumReached (countVotes (List.replicate n (ConsensusVote.pass "ok"))).1 qt = true := by
+    rw [countVotes_replicate_pass]
+    dsimp [isQuorumReached]
+    exact decide_eq_true h
+  exact aggregateConsensus_reaches_quorum _ qt hqt hq
+
+/-- A cluster with all `Kill` votes never reaches quorum when threshold > 0. -/
+theorem allKillClusterFailsQuorum (n qt : Nat) (h : qt > 0) :
+    (aggregateConsensus (List.replicate n (ConsensusVote.kill "no")) qt).isClusterPass = false := by
+  have hq : isQuorumReached (countVotes (List.replicate n (ConsensusVote.kill "no"))).1 qt = false := by
+    rw [countVotes_replicate_kill]
+    dsimp [isQuorumReached]
+    exact decide_eq_false (by omega)
+  exact aggregateConsensus_fails_quorum _ qt hq
 
 end PIRTM.DistributedGovernance

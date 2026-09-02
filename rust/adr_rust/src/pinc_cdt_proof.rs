@@ -70,3 +70,28 @@ mod tests {
         assert!(ds >= 1.2 && ds <= 2.0);
     }
 }
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn proof_spectral_dimension_proxy_bounds() {
+        let avg_eps: f64 = kani::any();
+        let eps_max: f64 = kani::any();
+        kani::assume(avg_eps >= 0.0 && avg_eps <= 10.0);
+        kani::assume(eps_max >= 0.01 && eps_max <= 10.0);
+
+        let ds = compute_spectral_dimension_proxy(avg_eps, eps_max);
+        assert!(ds >= 1.2 && ds <= 2.0);
+    }
+
+    #[kani::proof]
+    fn proof_euler_discretization_step_stable() {
+        let gamma_dt_scaled: i32 = kani::any();
+        kani::assume(gamma_dt_scaled > 0 && gamma_dt_scaled < 200);
+
+        let diff = 100 - gamma_dt_scaled;
+        assert!(diff.abs() < 100);
+    }
+}

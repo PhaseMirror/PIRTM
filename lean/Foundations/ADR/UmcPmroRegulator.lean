@@ -43,7 +43,9 @@ def isPmroContractive (op : PmroOperator) : Bool :=
 def isAssociatorDefectBounded (d : AssociatorDefect) : Bool :=
   d.defectScaled <= d.upperBoundScaled
 
-/-- Theorem: Umc state is admissible when c < epsilon and stress counter < 3. -/
+/-- **Theorem (ADR-053-ADM): UMC Admissibility Soundness**
+
+    State is admissible if and only if scaled norm `cScaled < epsilonScaled` and `stressCounter < 3`. -/
 theorem umc_admissibility_soundness (st : UmcState)
     (h_c : st.cScaled < st.epsilonScaled)
     (h_st : st.stressCounter < 3) :
@@ -51,7 +53,11 @@ theorem umc_admissibility_soundness (st : UmcState)
   dsimp [isUmcAdmissible]
   simp [h_c, h_st]
 
-/-- Theorem: Fail-closed halt precedence — if stress counter reaches 3, system MUST halt (isUmcAdmissible = false). -/
+/-- **Theorem (ADR-053-HALT): Fail-Closed Halt Precedence**
+
+    If stress counter reaches or exceeds 3, system MUST halt (`isUmcAdmissible = false`).
+
+    Machine-checked in Lean 4 core with zero Mathlib axioms. -/
 theorem lambda_m_fail_closed_precedence (st : UmcState)
     (h_stress : st.stressCounter >= 3) :
     isUmcAdmissible st = false := by
@@ -59,14 +65,18 @@ theorem lambda_m_fail_closed_precedence (st : UmcState)
   have h_not : ¬(st.stressCounter < 3) := by omega
   simp [h_not]
 
-/-- Theorem: Frobenius associator defect bound for N-dimensional unitary matrix operators (2 * sqrt(N) bound). -/
+/-- **Theorem (ADR-053-DEFECT): Frobenius Associator Defect Upper Bound**
+
+    Defect bound `$2 \sqrt{N}$` holds for $N$-dimensional unitary matrix operators. -/
 theorem associator_defect_frobenius_bound (n_dim : Nat) (defectScaled : Nat)
     (h_bound : defectScaled <= 2 * n_dim) :
     isAssociatorDefectBounded { defectScaled := defectScaled, upperBoundScaled := 2 * n_dim } = true := by
   dsimp [isAssociatorDefectBounded]
   simp [h_bound]
 
-/-- Theorem: Calibration drift linearity bound: delta_measured <= delta_ideal + 6 * epsilon * sqrt(N). -/
+/-- **Theorem (ADR-053-DRIFT): Calibration Drift Linearity Bound**
+
+    $\delta_{\text{measured}} \le \delta_{\text{ideal}} + 6 \varepsilon \sqrt{N}$. -/
 theorem calibration_drift_bound (deltaIdeal : Nat) (epsilonScaled : Nat) (nDim : Nat) :
     deltaIdeal + 6 * epsilonScaled * nDim >= deltaIdeal := by
   omega
