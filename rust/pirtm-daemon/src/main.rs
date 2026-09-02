@@ -132,49 +132,17 @@ pub fn find_explicit_delimiter_line(source: &str) -> Option<usize> {
             return Some(byte_offset);
         }
 
-        byte_offset += line.len() + 1;
+        byte_offset += line.len() + 1; // include line length and newline byte
     }
 
     None
 }
 
-/// Lexically locates header split offset (explicit `---` or implicit body boundary) (ADR-057, ADR-060)
-pub fn find_header_split_offset(source: &str) -> Option<(usize, bool)> {
-    let mut in_block_comment = false;
-    let mut byte_offset = 0;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("/*") && !trimmed.contains("*/") {
-            in_block_comment = true;
-        } else if trimmed.contains("*/") {
-            in_block_comment = false;
-        }
-
-        if !in_block_comment {
-            if trimmed == "---" {
-                return Some((byte_offset, true)); // Explicit header delimiter
-            }
-            if trimmed.starts_with("fn ") || trimmed.starts_with("struct ") || trimmed.starts_with("enum ") || trimmed.starts_with("impl ") {
-                return Some((byte_offset, false)); // Implicit body boundary
-            }
-        }
-
-        byte_offset += line.len() + 1;
-    }
-
-    None
-}
-
-/// Splits PIRTM contract source into (envelope_header, application_body) (ADR-057)
+/// Splits PIRTM contract source into (envelope_header, application_body) strictly at standalone `---` delimiter line (ADR-057)
 pub fn split_header_body(source: &str) -> (&str, &str) {
-    if let Some((offset, explicit)) = find_header_split_offset(source) {
+    if let Some(offset) = find_explicit_delimiter_line(source) {
         let (header, rest) = source.split_at(offset);
-        let body = if explicit {
-            rest.trim_start_matches(|c| c == '-' || c == '\r' || c == '\n' || c == ' ')
-        } else {
-            rest
-        };
+        let body = rest.trim_start_matches(|c| c == '-' || c == '\r' || c == '\n' || c == ' ');
         (header, body)
     } else {
         (source, "")
@@ -347,9 +315,12 @@ async fn process_request(req: DaemonRequest, state: Arc<Mutex<DaemonState>>) -> 
                 }
             };
 
-            // Phase 2 Code Generation: Parse application source and emit MLIR
+            // Phase 2 Code Generation: Parse application body after delimiter (or full source if header-only) and emit MLIR (ADR-059)
+            let (_, body_text) = split_header_body(source);
+            let compile_target = if body_text.trim().is_empty() { source } else { body_text };
+
             let compiler = PhaseMirrorCompiler::new();
-            let mlir_module = match compiler.compile(source) {
+            let mlir_module = match compiler.compile(compile_target) {
                 Ok(m) => m,
                 Err(err) => {
                     return DaemonResponse {
@@ -640,7 +611,7 @@ mod tests {
         let valid_ast_source = r#"
         let matrix = (((0, 1), (4, 10)), ((4, 10), (0, 1)));
         let lambdas = ((9, 10), (9, 10));
-
+        ---
         fn main() -> i64 {
             return 42;
         }
