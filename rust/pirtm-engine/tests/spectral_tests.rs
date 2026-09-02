@@ -66,10 +66,28 @@ fn test_runtime_validate_and_certify() {
             vec![0.3, 0.0],
         ],
         vec![0.5, 0.5],
-    );
+    )
+    .with_theorem_name("author_declared_lambda");
 
     let receipt = spectral::validate_and_certify(&ensemble, 1e-6).expect("Validation must succeed");
     assert!(receipt.is_stable);
     assert_eq!(receipt.dimension, 2);
     assert!(!receipt.hash.is_empty());
+    assert_eq!(receipt.theorem_name, "author_declared_lambda");
+    assert!(receipt.validate().is_ok());
+}
+
+#[test]
+fn test_runtime_validate_rejects_missing_theorem_name() {
+    let ensemble = Ensemble::new(
+        "uncertified_ensemble",
+        vec![
+            vec![0.0, 0.3],
+            vec![0.3, 0.0],
+        ],
+        vec![0.5, 0.5],
+    );
+
+    let err = spectral::validate_and_certify(&ensemble, 1e-6).expect_err("empty theorem_name must fail");
+    assert!(err.contains("MissingTheoremAnchor"));
 }

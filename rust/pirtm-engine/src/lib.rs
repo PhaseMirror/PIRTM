@@ -12,7 +12,7 @@ use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::process::{Command, Stdio};
 use std::io::Write;
-pub use spectral::{Ensemble, EnsembleContractivityReceipt, check_small_gain, validate_and_certify};
+pub use spectral::{Ensemble, EnsembleContractivityReceipt, EnsembleError, check_small_gain, validate_and_certify};
 pub use governance::Sentinel;
 pub use http_server::{GovernedHttpServer, GovernedHttpResponse};
 
@@ -63,6 +63,7 @@ impl Runtime {
                 "spectral_radius": cert.spectral_radius,
                 "is_stable": cert.is_stable,
                 "receipt_hash": cert.hash,
+                "theorem_name": cert.theorem_name,
             })
         );
         Ok(cert)
@@ -164,4 +165,3 @@ impl Runtime {
         })
     }
 }
-

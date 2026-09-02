@@ -11,7 +11,8 @@ fn test_end_to_end_json_parser_execution() {
             vec![0.5, 0.0],
         ],
         vec![0.8, 0.8],
-    );
+    )
+    .with_theorem_name("author_declared_lambda");
 
     let config = RuntimeConfig {
         dry_run: false,
@@ -28,6 +29,7 @@ fn test_end_to_end_json_parser_execution() {
     assert!(cert.is_stable);
     assert!(cert.spectral_radius < 1.0);
     assert!(!cert.hash.is_empty());
+    assert_eq!(cert.theorem_name, "author_declared_lambda");
 
     // 2. Load and run compiled MLIR module
     let mlir_path = Path::new("../../examples/json_parser.mlir");

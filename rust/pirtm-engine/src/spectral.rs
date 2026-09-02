@@ -5,13 +5,51 @@
 //!
 //! where A is the inter-ensemble interconnection matrix and λ is the vector of
 //! certified per-atom contraction gains.
+//!
+//! `EnsembleContractivityReceipt.theorem_name` is a required author-supplied
+//! Lean identifier. Presence is gated here. Existence and content of that
+//! declaration are not checked in this module (ADR-053 remains open).
 
 use nalgebra::DMatrix;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt;
 
 fn default_ensemble_name() -> String {
     "default_ensemble".to_string()
+}
+
+/// Errors on ensemble certification. Spectral numeric failures remain `String`
+/// from `check_small_gain`. Receipt issuance uses this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnsembleError {
+    /// `theorem_name` missing, empty, or not a Lean-style identifier.
+    MissingTheoremAnchor,
+}
+
+impl fmt::Display for EnsembleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EnsembleError::MissingTheoremAnchor => {
+                write!(f, "MissingTheoremAnchor: theorem_name is empty or missing")
+            }
+        }
+    }
+}
+
+impl std::error::Error for EnsembleError {}
+
+/// True iff `name` is a non-empty Lean-style identifier.
+/// Does not prove a declaration of that name exists on the Lean tree.
+pub fn is_theorem_anchor(name: &str) -> bool {
+    let s = name.trim();
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'')
+        }
+        _ => false,
+    }
 }
 
 /// An interconnected ensemble of components with coupling matrix A and local gains λ
@@ -21,6 +59,10 @@ pub struct Ensemble {
     pub name: String,
     pub adjacency: Vec<Vec<f64>>,
     pub lambdas: Vec<f64>,
+    /// Author-declared Lean theorem identifier. Default empty so JSON without
+    /// the field fails certification rather than inventing an anchor.
+    #[serde(default)]
+    pub theorem_name: String,
 }
 
 impl Ensemble {
@@ -29,7 +71,13 @@ impl Ensemble {
             name: name.into(),
             adjacency,
             lambdas,
+            theorem_name: String::new(),
         }
+    }
+
+    pub fn with_theorem_name(mut self, theorem_name: impl Into<String>) -> Self {
+        self.theorem_name = theorem_name.into();
+        self
     }
 
     /// Compute the spectral radius of |A| * diag(λ).
@@ -47,6 +95,19 @@ pub struct EnsembleContractivityReceipt {
     pub spectral_radius: f64,
     pub is_stable: bool,
     pub timestamp: u64,
+    /// Lean identifier supplied by the author. Not a proof of ρ.
+    pub theorem_name: String,
+}
+
+impl EnsembleContractivityReceipt {
+    /// Re-check the theorem-name field on an already-built receipt.
+    pub fn validate(&self) -> Result<(), EnsembleError> {
+        if is_theorem_anchor(&self.theorem_name) {
+            Ok(())
+        } else {
+            Err(EnsembleError::MissingTheoremAnchor)
+        }
+    }
 }
 
 /// Calculate the spectral radius ρ(M) directly via complex eigenvalue decomposition
@@ -159,12 +220,18 @@ pub fn check_small_gain(ensemble: &Ensemble, margin: f64) -> Result<f64, String>
     Ok(rho)
 }
 
-/// Validate an ensemble and generate a cryptographically anchored receipt
+/// Validate an ensemble and generate a cryptographically anchored receipt.
+/// Hard-fails if `theorem_name` is empty or not a Lean-style identifier.
 pub fn validate_and_certify(ensemble: &Ensemble, margin: f64) -> Result<EnsembleContractivityReceipt, String> {
+    if !is_theorem_anchor(&ensemble.theorem_name) {
+        return Err(EnsembleError::MissingTheoremAnchor.to_string());
+    }
+
     let rho = check_small_gain(ensemble, margin)?;
 
     let mut hasher = Sha256::new();
     hasher.update(ensemble.name.as_bytes());
+    hasher.update(ensemble.theorem_name.as_bytes());
     hasher.update(&rho.to_le_bytes());
     for row in &ensemble.adjacency {
         for &val in row {
@@ -181,14 +248,17 @@ pub fn validate_and_certify(ensemble: &Ensemble, margin: f64) -> Result<Ensemble
         .unwrap_or_default()
         .as_secs();
 
-    Ok(EnsembleContractivityReceipt {
+    let receipt = EnsembleContractivityReceipt {
         hash,
         ensemble_name: ensemble.name.clone(),
         dimension: ensemble.adjacency.len(),
         spectral_radius: rho,
         is_stable: true,
         timestamp,
-    })
+        theorem_name: ensemble.theorem_name.trim().to_string(),
+    };
+    receipt.validate().map_err(|e| e.to_string())?;
+    Ok(receipt)
 }
 
 #[cfg(test)]
@@ -209,9 +279,14 @@ mod tests {
         let rho = check_small_gain(&ensemble, 1e-4).expect("Acyclic pipeline must pass");
         assert!(rho < 1e-6);
 
-        let cert = validate_and_certify(&ensemble, 1e-4).unwrap();
+        let cert = validate_and_certify(
+            &ensemble.with_theorem_name("author_declared_lambda"),
+            1e-4,
+        )
+        .unwrap();
         assert!(cert.is_stable);
         assert!(!cert.hash.is_empty());
+        assert_eq!(cert.theorem_name, "author_declared_lambda");
     }
 
     #[test]
@@ -259,5 +334,28 @@ mod tests {
             vec![0.5], // 1 lambda for 2x2 matrix
         );
         assert!(check_small_gain(&ensemble, 0.0).is_err());
+    }
+
+    #[test]
+    fn test_certify_rejects_missing_theorem_name() {
+        let ensemble = Ensemble::new(
+            "no_anchor",
+            vec![vec![0.0, 1.0], vec![0.0, 0.0]],
+            vec![0.4, 0.4],
+        );
+        let err = validate_and_certify(&ensemble, 1e-4).unwrap_err();
+        assert!(err.contains("MissingTheoremAnchor"));
+    }
+
+    #[test]
+    fn test_certify_rejects_whitespace_theorem_name() {
+        let ensemble = Ensemble::new(
+            "blank_anchor",
+            vec![vec![0.0, 1.0], vec![0.0, 0.0]],
+            vec![0.4, 0.4],
+        )
+        .with_theorem_name("   ");
+        let err = validate_and_certify(&ensemble, 1e-4).unwrap_err();
+        assert!(err.contains("MissingTheoremAnchor"));
     }
 }
