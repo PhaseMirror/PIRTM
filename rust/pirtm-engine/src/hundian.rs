@@ -18,6 +18,8 @@ pub enum SpinTag {
 pub enum GateResult {
     OkSingle { sigma: SpinTag },
     OkPair { sigma: SpinTag },
+    OkHierarchy,
+    OkDualHatWaiver { sigma: Option<SpinTag> },
     RejUnknownClass,
     RejDualHat,
     RejPauli,
@@ -92,9 +94,14 @@ impl HundianState {
             .map(|keys| !keys.is_empty() && !keys.contains(&key))
             .unwrap_or(false);
 
-        if is_user_has_other_keys && waiver_id.is_none() {
-            return GateResult::RejDualHat;
-        }
+        let used_waiver = if is_user_has_other_keys {
+            if waiver_id.is_none() {
+                return GateResult::RejDualHat;
+            }
+            true
+        } else {
+            false
+        };
 
         let occupants = self.registered_slots.get(&key).unwrap();
 
@@ -105,21 +112,35 @@ impl HundianState {
 
         let is_degenerate = self.degenerate_classes.contains(role_class);
 
-        // G3: Term order
-        if occupants.len() == 1 {
-            let u = self.count_empty_degenerate_slots(period_id);
-            if is_degenerate && u > 0 {
-                return GateResult::RejTermOrder;
+        // G3: Term order & fill acceptance
+        let result = if occupants.len() == 1 {
+            if is_degenerate {
+                let u = self.count_empty_degenerate_slots(period_id);
+                if u > 0 {
+                    return GateResult::RejTermOrder;
+                }
+                if used_waiver {
+                    GateResult::OkDualHatWaiver { sigma: Some(SpinTag::Beta) }
+                } else {
+                    GateResult::OkPair { sigma: SpinTag::Beta }
+                }
+            } else {
+                if used_waiver {
+                    GateResult::OkDualHatWaiver { sigma: None }
+                } else {
+                    GateResult::OkHierarchy
+                }
             }
-            // G5: Accept pair
-            let result = GateResult::OkPair { sigma: SpinTag::Beta };
-            self.registered_slots.get_mut(&key).unwrap().push(person_id.to_string());
-            self.person_occupancies.entry((person_id.to_string(), period_id.to_string())).or_default().insert(key);
-            return result;
-        }
+        } else {
+            if used_waiver {
+                GateResult::OkDualHatWaiver { sigma: if is_degenerate { Some(SpinTag::Alpha) } else { None } }
+            } else if is_degenerate {
+                GateResult::OkSingle { sigma: SpinTag::Alpha }
+            } else {
+                GateResult::OkHierarchy
+            }
+        };
 
-        // G5: Accept single
-        let result = GateResult::OkSingle { sigma: SpinTag::Alpha };
         self.registered_slots.get_mut(&key).unwrap().push(person_id.to_string());
         self.person_occupancies.entry((person_id.to_string(), period_id.to_string())).or_default().insert(key);
         result
@@ -174,6 +195,24 @@ mod tests {
         // 10:10Z bob -> fac-1 REJ_DUALHAT
         let r7 = state.propose_fill("bob", "facilitation", "fac-1", "P0", None);
         assert_eq!(r7, GateResult::RejDualHat);
+    }
+
+    #[test]
+    fn test_non_degenerate_and_waiver_codes() {
+        let mut state = HundianState::new();
+        let k_doc = PauliKey { role_class: "documentation".into(), slot_id: "doc-1".into(), period_id: "P0".into() };
+        let k_doc2 = PauliKey { role_class: "documentation".into(), slot_id: "doc-2".into(), period_id: "P0".into() };
+        state.register_slot(k_doc);
+        state.register_slot(k_doc2);
+
+        let r1 = state.propose_fill("carol", "documentation", "doc-1", "P0", None);
+        assert_eq!(r1, GateResult::OkHierarchy);
+
+        let r2 = state.propose_fill("dave", "documentation", "doc-1", "P0", None);
+        assert_eq!(r2, GateResult::OkHierarchy);
+
+        let r3 = state.propose_fill("carol", "documentation", "doc-2", "P0", Some("waiver-456"));
+        assert_eq!(r3, GateResult::OkDualHatWaiver { sigma: None });
     }
 }
 
