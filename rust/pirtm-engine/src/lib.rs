@@ -8,6 +8,7 @@ pub mod governance;
 pub mod http_server;
 pub mod hundian;
 pub mod energy;
+pub mod xi_constitution;
 
 use std::path::{Path, PathBuf};
 use serde_json::json;
