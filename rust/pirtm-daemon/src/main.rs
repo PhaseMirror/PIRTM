@@ -874,3 +874,16 @@ mod tests {
         assert_eq!(result["legal_entity_metadata"], "Citizen Gardens UNA d/b/a The Prime Materia Commons");
     }
 }
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn verify_lexical_boundary_splitter_safety() {
+        let input: &str = kani::any();
+        let (header, body) = split_header_body(input);
+        kani::assert(header.len() <= input.len(), "Header length bounded by input");
+        kani::assert(body.len() <= input.len(), "Body length bounded by input");
+    }
+}
