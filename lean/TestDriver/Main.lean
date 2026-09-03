@@ -33,6 +33,7 @@ def main : IO UInt32 := do
   test_phase_decoupled_pipeline
   test_standalone_delimiter_detection
   test_fail_closed_validation
+  test_github_pages_deployment
   exportAll
 
 

@@ -29,6 +29,7 @@ import Foundations.ADR.FormalHeaderEnvelopeGrammar
 import Foundations.ADR.PhaseDecoupledPipeline
 import Foundations.ADR.StandaloneDelimiterDetection
 import Foundations.ADR.FailClosedValidation
+import Foundations.ADR.GitHubPagesDeployment
 
 /-!
 # ADR Foundations Test
@@ -314,4 +315,12 @@ def test_fail_closed_validation : IO Unit := do
     IO.println "ADR-061: Fail-closed missing header delimiter validation test passed"
   else
     throw $ IO.Error.userError "ADR-061: Fail-closed validation check failed"
+
+def test_github_pages_deployment : IO Unit := do
+  let layer := Foundations.ADR.GitHubPagesDeployment.DocSiteLayer.WasmPlayground
+  if Foundations.ADR.GitHubPagesDeployment.isRequiredSiteLayer layer then
+    IO.println "ADR-063: GitHub Pages automated documentation site deployment test passed"
+  else
+    throw $ IO.Error.userError "ADR-063: Site layer requirement check failed"
+
 
