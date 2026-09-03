@@ -24,6 +24,11 @@ import Foundations.ADR.UmcPmroRegulator
 import Foundations.ADR.PincCdtSpacetime
 import Foundations.ADR.PosRatContractivity
 import Foundations.ADR.CollaborativeCRDT
+import Foundations.ADR.LexicalHeaderSplitter
+import Foundations.ADR.FormalHeaderEnvelopeGrammar
+import Foundations.ADR.PhaseDecoupledPipeline
+import Foundations.ADR.StandaloneDelimiterDetection
+import Foundations.ADR.FailClosedValidation
 
 /-!
 # ADR Foundations Test
@@ -272,3 +277,41 @@ def test_posrat_contractivity : IO Unit := do
     IO.println "ADR-055: PosRat column-sum 1-norm predicate test passed"
   else
     throw $ IO.Error.userError "ADR-055: PosRat column-sum 1-norm predicate failed"
+
+def test_lexical_header_splitter : IO Unit := do
+  let src := "let matrix = 1;\n---\nfn main() {}"
+  let (h, _) := Foundations.ADR.LexicalHeaderSplitter.splitHeaderBody src
+  if h.length <= src.length then
+    IO.println "ADR-057: Lexical header boundary pre-processor test passed"
+  else
+    throw $ IO.Error.userError "ADR-057: Header length bound check failed"
+
+def test_formal_header_envelope_grammar : IO Unit := do
+  if !Foundations.ADR.FormalHeaderEnvelopeGrammar.isAllowedHeaderStmt Foundations.ADR.FormalHeaderEnvelopeGrammar.EnvelopeStmtKind.InvalidAppCode then
+    IO.println "ADR-058: Formal header envelope grammar quarantine test passed"
+  else
+    throw $ IO.Error.userError "ADR-058: Envelope grammar quarantine failed"
+
+def test_phase_decoupled_pipeline : IO Unit := do
+  let receipt : Foundations.ADR.PhaseDecoupledPipeline.SpectralReceipt := { isContractive := false }
+  let res := Foundations.ADR.PhaseDecoupledPipeline.runPipeline receipt (fun _ => "mlir")
+  if res == Foundations.ADR.PhaseDecoupledPipeline.PipelineResult.AbortedGovernanceFailure then
+    IO.println "ADR-059: Phase-decoupled pipeline fail-closed gate test passed"
+  else
+    throw $ IO.Error.userError "ADR-059: Pipeline fail-closed gate failed"
+
+def test_standalone_delimiter_detection : IO Unit := do
+  let src := "let matrix = 1;"
+  let (h, _) := Foundations.ADR.StandaloneDelimiterDetection.partitionSource src none
+  if h.length <= src.length then
+    IO.println "ADR-060: Lexical standalone delimiter detection test passed"
+  else
+    throw $ IO.Error.userError "ADR-060: Standalone delimiter detection failed"
+
+def test_fail_closed_validation : IO Unit := do
+  let res := Foundations.ADR.FailClosedValidation.validateContract false true 0 true
+  if res == Foundations.ADR.FailClosedValidation.ValidationOutcome.Rejected Foundations.ADR.FailClosedValidation.FailClosedError.MissingHeaderDelimiter then
+    IO.println "ADR-061: Fail-closed missing header delimiter validation test passed"
+  else
+    throw $ IO.Error.userError "ADR-061: Fail-closed validation check failed"
+

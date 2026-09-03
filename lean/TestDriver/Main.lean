@@ -28,6 +28,11 @@ def main : IO UInt32 := do
   test_pinc_cdt_spacetime
   test_posrat_contractivity
   test_collaborative_crdt
+  test_lexical_header_splitter
+  test_formal_header_envelope_grammar
+  test_phase_decoupled_pipeline
+  test_standalone_delimiter_detection
+  test_fail_closed_validation
   exportAll
 
 
