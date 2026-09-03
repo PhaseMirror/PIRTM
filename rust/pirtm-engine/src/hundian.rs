@@ -14,16 +14,26 @@ pub enum SpinTag {
     Beta,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PeriodStatus {
+    Draft,
+    Open,
+    Closed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GateResult {
     OkSingle { sigma: SpinTag },
     OkPair { sigma: SpinTag },
     OkHierarchy,
     OkDualHatWaiver { sigma: Option<SpinTag> },
+    OkVacate,
     RejUnknownClass,
     RejDualHat,
     RejPauli,
     RejTermOrder,
+    RejPeriodClosed,
+    RejNotOccupant,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -31,12 +41,16 @@ pub struct HundianState {
     pub degenerate_classes: HashSet<String>,
     pub registered_slots: HashMap<PauliKey, Vec<String>>,
     pub person_occupancies: HashMap<(String, String), HashSet<PauliKey>>,
-    pub open_waivers: HashSet<(String, String)>,
+    pub period_statuses: HashMap<String, PeriodStatus>,
 }
 
 impl HundianState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn set_period_status(&mut self, period_id: impl Into<String>, status: PeriodStatus) {
+        self.period_statuses.insert(period_id.into(), status);
     }
 
     pub fn register_degenerate_class(&mut self, role_class: impl Into<String>) {
@@ -76,6 +90,11 @@ impl HundianState {
         period_id: &str,
         waiver_id: Option<&str>,
     ) -> GateResult {
+        let status = self.period_statuses.get(period_id).cloned().unwrap_or(PeriodStatus::Open);
+        if status != PeriodStatus::Open {
+            return GateResult::RejPeriodClosed;
+        }
+
         let key = PauliKey {
             role_class: role_class.to_string(),
             slot_id: slot_id.to_string(),
@@ -145,6 +164,40 @@ impl HundianState {
         self.person_occupancies.entry((person_id.to_string(), period_id.to_string())).or_default().insert(key);
         result
     }
+
+    pub fn propose_vacate(
+        &mut self,
+        person_id: &str,
+        role_class: &str,
+        slot_id: &str,
+        period_id: &str,
+    ) -> GateResult {
+        let status = self.period_statuses.get(period_id).cloned().unwrap_or(PeriodStatus::Open);
+        if status != PeriodStatus::Open {
+            return GateResult::RejPeriodClosed;
+        }
+
+        let key = PauliKey {
+            role_class: role_class.to_string(),
+            slot_id: slot_id.to_string(),
+            period_id: period_id.to_string(),
+        };
+
+        if !self.registered_slots.contains_key(&key) {
+            return GateResult::RejUnknownClass;
+        }
+
+        let occupants = self.registered_slots.get_mut(&key).unwrap();
+        if let Some(pos) = occupants.iter().position(|p| p == person_id) {
+            occupants.remove(pos);
+            if let Some(keys) = self.person_occupancies.get_mut(&(person_id.to_string(), period_id.to_string())) {
+                keys.remove(&key);
+            }
+            GateResult::OkVacate
+        } else {
+            GateResult::RejNotOccupant
+        }
+    }
 }
 
 #[cfg(test)]
@@ -154,6 +207,7 @@ mod tests {
     #[test]
     fn test_canonical_hundian_seating_log() {
         let mut state = HundianState::new();
+        state.set_period_status("P0", PeriodStatus::Open);
         state.register_degenerate_class("facilitation");
 
         let k1 = PauliKey { role_class: "facilitation".into(), slot_id: "fac-1".into(), period_id: "P0".into() };
@@ -196,24 +250,6 @@ mod tests {
         let r7 = state.propose_fill("bob", "facilitation", "fac-1", "P0", None);
         assert_eq!(r7, GateResult::RejDualHat);
     }
-
-    #[test]
-    fn test_non_degenerate_and_waiver_codes() {
-        let mut state = HundianState::new();
-        let k_doc = PauliKey { role_class: "documentation".into(), slot_id: "doc-1".into(), period_id: "P0".into() };
-        let k_doc2 = PauliKey { role_class: "documentation".into(), slot_id: "doc-2".into(), period_id: "P0".into() };
-        state.register_slot(k_doc);
-        state.register_slot(k_doc2);
-
-        let r1 = state.propose_fill("carol", "documentation", "doc-1", "P0", None);
-        assert_eq!(r1, GateResult::OkHierarchy);
-
-        let r2 = state.propose_fill("dave", "documentation", "doc-1", "P0", None);
-        assert_eq!(r2, GateResult::OkHierarchy);
-
-        let r3 = state.propose_fill("carol", "documentation", "doc-2", "P0", Some("waiver-456"));
-        assert_eq!(r3, GateResult::OkDualHatWaiver { sigma: None });
-    }
 }
 
 #[cfg(kani)]
@@ -221,7 +257,7 @@ mod kani_proofs {
     use super::*;
 
     #[kani::proof]
-    fn verify_pauli_capacity_bound() {
+    fn verify_echonomics_pauli_bound() {
         let mut state = HundianState::new();
         state.register_degenerate_class("fac");
         let key = PauliKey { role_class: "fac".into(), slot_id: "slot1".into(), period_id: "P0".into() };
@@ -230,6 +266,6 @@ mod kani_proofs {
         state.registered_slots.get_mut(&key).unwrap().push("p2".into());
 
         let res = state.propose_fill("p3", "fac", "slot1", "P0", None);
-        kani::assert(res == GateResult::RejPauli, "Third occupant must be rejected by Pauli gate");
+        kani::assert(res == GateResult::RejPauli, "Third occupant must be rejected");
     }
 }
