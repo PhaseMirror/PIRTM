@@ -7,6 +7,7 @@ pub mod spectral;
 pub mod governance;
 pub mod http_server;
 pub mod hundian;
+pub mod energy;
 
 use std::path::{Path, PathBuf};
 use serde_json::json;
