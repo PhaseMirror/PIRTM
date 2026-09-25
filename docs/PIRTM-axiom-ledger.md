@@ -37,6 +37,18 @@ The following `sorry` obligations were eliminated (zero-sorry Lean build, `lake 
 | `Foundations/ADR/Proofs.lean` `no_circular_supersession` | Unprovable statement (`supersedes ≠ some a.id`) + `sorry` | Replaced with fuel-bounded `followSupersession_length_bounded` (well-founded chain, no circular traversal) |
 | `Foundations/ADR/DialecticalSemantics.lean` `admissible_implies_invariants` | `sorry` | Proved by `by_cases` on the three actual gate conditions (grounding `< minThreshold`, robustness `>= 100`, dialectical `> maxAllowed` / `branchCount <= 1`) |
 
+## 2c. Proof Debts Resolved During 2026-09-25 Executable Proof Repair
+
+The following `sorry` obligations in executable Lean modules were eliminated (zero-sorry Lean build, `lake build --rehash Foundations PIRTM prime_tensors TestDriver` = 89 jobs green; `lake test` = 30 tests pass; `grep sorry lean/` empty):
+
+| Module / Proof | Prior State | Resolution |
+|---|---|---|
+| `Foundations/ADR/LexicalHeaderSplitter.lean` `header_length_bounded` | `simpa [happend] using String.length_append` — rewrite motive type mismatch, `simp` recursion depth exceeded | Restructured with explicit `have` statements using `String.length_append` on `sliceTo`/`sliceFrom` copies, avoiding `simpa` rewrite |
+| `Foundations/ADR/LexicalHeaderSplitter.lean` `body_length_bounded` | Same `simpa`/`simp` recursion issue | Same restructuring as `header_length_bounded` |
+| `Foundations/ADR/FailClosedValidation.lean` `missing_matrix_rejected` | `sorry` | Rewritten with explicit `by_cases` on Bool equality |
+| `Foundations/ADR/HundianSocialPhysics.lean` `term_order_rejects_pairing_while_slots_empty` | `sorry` | Proved using `simp` with hypothesis |
+| `ADR/QMHESStability.lean` (unused import) | Unused `import Foundations.ADR.Proofs` | Removed unused import |
+
 ## 3. Claim Reconciliation Protocol
 No claim in `README.md` or documentation may be designated "Production-Ready" or "Complete" unless:
 1. The code physically exists on-tree.

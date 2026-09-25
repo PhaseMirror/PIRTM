@@ -1,8 +1,8 @@
 # PIRTM Grounded Status & Claim Table
 
-**Last Audited:** 2026-09-02
-**Audit SHA-256:** `4725b114c34a6eab3a85968efaf0b43c0d1e6d5fe752570b1fcb0ff2203da09b`
-**Last code SHA referenced:** `bc258d499b9f7daa37cb829e1e1639680932e253`
+**Last Audited:** 2026-09-25
+**Audit SHA-256:** `PENDING_RECOMPUTE`
+**Last code SHA referenced:** `PENDING_RECOMPUTE`
 
 This table reflects the ground-truth status of all PIRTM/MOC components, replacing aspirational statements with verifiable status indicators. Every "✅ Complete" claim must link to an existing, verifiable test or physical artifact on tree.
 
@@ -31,7 +31,7 @@ Step 2 (2026-09-02): two rows added or corrected for defects exposed by README d
 | **ADR Registry Verifier & Kernel Boundary** | Zero-Drift Gate | ✅ Complete | `cargo test -p adr-verifier` (8 tests: structural + boundary guard) |
 | **Governed Ensemble Registry** | Contraction + Resonance Gate | ✅ Complete | `cargo test -p pirtm-registry` (2 tests: publish accept/reject) |
 | **Distribution Ledger** | Invariant-Gated Install | ✅ Complete | `cargo test -p pirtm-dist` (2 tests: install valid/unlawful) |
-| **CRMF Orchestration** | Hardware-Tensor Binding | ✅ Complete | `cargo test -p pirtm-orchestration` (1 test: CRMF request) |
+| **CRMF Orchestration** | Hardware-Tensor Binding | ⏳ In Progress | Basic `CRMFRequest` struct in `pirtm-orchestration` + `CrmfBinding` in `pirtm-engine`; no versioned envelope, canonical BCS transcript, domain-separated signing, Merkle-root trace binding, scoped fail-closed behavior, KAT vectors, or MCP handler integration. `cargo test -p pirtm-orchestration` tests distributed governance only, not CRMF requests. |
 | **REPL + LSP Developer Tools** | Real-Time Gate Feedback | ✅ Complete | `cargo build -p pirtm-tools`; LSP diagnostics on `scf`/`func` ops |
 | **WebAssembly SDK Builder** | WASM Compilation Bridge | ⏳ In Progress | `pirtm-web-sdk` binary compiles via `cargo build`; requires `emcc`+`lake` for `build` subcommand |
 | **QMHES Stability Theorems (ADR-033)** | Formal Proofs | ⚠️ Partial | `lean/ADR/QMHESStability.lean` (5 theorems + 6 supporting lemmas, zero-sorry); `lake build` + `lake test` on-tree; open deferred property `AX-QMHES-003` and scoped KDF assumption `AX-QMHES-001` |
