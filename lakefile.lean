@@ -7,8 +7,16 @@ package PIRTM where
 
 lean_lib Foundations where
   srcDir := "lean"
-  -- Sole ADR root: lean/Foundations/ADR. Do not glob lean/ADR.
+  -- Canonical ADR root. The legacy lean/ADR directory is deprecated.
   globs := #[.submodules `Foundations]
+
+lean_lib PIRTM where
+  srcDir := "lean"
+  globs := #[`PIRTM]
+
+lean_lib prime_tensors where
+  srcDir := "lean"
+  globs := #[`prime_tensors]
 
 @[default_target]
 lean_exe TestDriver where

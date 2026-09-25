@@ -178,7 +178,6 @@ theorem qahes_handshake_envelope_preserved (op1 op2 : LoweringSoundness.OpTransf
   LoweringSoundness.mlir_lowering_preserves_contractivity op1 op2
 
 open PIRTM.ADR
-open Foundations.ADR.Proofs
 
 def qmhesAdr : ADR := {
   id := 33,

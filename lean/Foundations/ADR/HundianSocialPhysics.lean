@@ -66,8 +66,7 @@ theorem pauli_exclusion_rejects_third_occupant (emptySlots : Nat) (isDeg : Bool)
 
 theorem term_order_rejects_pairing_while_slots_empty (emptySlots : Nat) (_h : emptySlots > 0) :
     evaluatePauliGate 1 emptySlots true = GateResult.RejTermOrder := by
-  dsimp [evaluatePauliGate]
-  sorry
+  simp [evaluatePauliGate, _h]
 
 theorem term_order_allows_pairing_when_all_slots_filled :
     evaluatePauliGate 1 0 true = GateResult.OkPair SpinTag.Beta := by

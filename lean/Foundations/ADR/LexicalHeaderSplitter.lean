@@ -19,19 +19,50 @@ def adr0057 : PIRTM.ADR.ADR := {
 }
 
 def splitHeaderBody (source : String) (delimiter : String := "---") : String × String :=
-  match source.splitOn delimiter with
-  | [] => ("", "")
-  | [single] => (single, "")
-  | head :: _ => (head, "")
+  if delimiter = "" then
+    (source, "")
+  else
+    match source.find? delimiter with
+    | none => (source, "")
+    | some pos => (source.extract source.startPos pos, "")
 
 theorem header_length_bounded (source : String) :
     (splitHeaderBody source).1.length ≤ source.length := by
-  dsimp [splitHeaderBody]
-  sorry
+  unfold splitHeaderBody
+  split
+  · exact Nat.le_refl _
+  · cases h : source.find? "---" with
+    | none => exact Nat.le_refl _
+    | some pos =>
+      have hprefix : source.extract source.startPos pos = (source.sliceTo pos).copy := by
+        simp [String.extract_eq_copy_slice, String.slice_startPos]
+      have hsuffix : source.extract pos source.endPos = (source.sliceFrom pos).copy := by
+        simp [String.extract_eq_copy_slice, String.slice_endPos]
+      have happend : source = (source.sliceTo pos).copy ++ (source.sliceFrom pos).copy :=
+        pos.splits.eq_append
+      have h1 := congrArg String.length happend
+      have h2 : ((source.sliceTo pos).copy ++ (source.sliceFrom pos).copy).length =
+          (source.sliceTo pos).copy.length + (source.sliceFrom pos).copy.length := by
+        rw [String.length_append]
+      have h3 : source.length = (source.sliceTo pos).copy.length + (source.sliceFrom pos).copy.length := by
+        rw [h1, h2]
+      have hp_len : (source.extract source.startPos pos).length = (source.sliceTo pos).copy.length :=
+        congrArg String.length hprefix
+      have hs_len : (source.extract pos source.endPos).length = (source.sliceFrom pos).copy.length :=
+        congrArg String.length hsuffix
+      have h4 : source.length = (source.extract source.startPos pos).length +
+          (source.extract pos source.endPos).length := by
+        rw [h3, ← hp_len, ← hs_len]
+      rw [h4]
+      exact Nat.le_add_right _ _
 
 theorem body_length_bounded (source : String) :
     (splitHeaderBody source).2.length ≤ source.length := by
-  dsimp [splitHeaderBody]
-  sorry
+  unfold splitHeaderBody
+  split
+  · exact Nat.zero_le _
+  · cases h : source.find? "---" with
+    | none => exact Nat.zero_le _
+    | some pos => exact Nat.zero_le _
 
 end Foundations.ADR.LexicalHeaderSplitter

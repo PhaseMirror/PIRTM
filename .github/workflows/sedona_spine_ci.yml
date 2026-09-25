@@ -14,11 +14,56 @@ jobs:
       - uses: leanprover/elan@v1
         with:
           toolchain: leanprover/lean4:v4.33.0-rc2
-      - run: |
-          EXPECTED=$(cat lean-toolchain | tr -d '\n')
+      - name: Verify pinned toolchain
+        run: |
+          EXPECTED=$(tr -d '\n' < lean-toolchain)
           ACTUAL=$(lean --version | awk '{print $3}')
           if [ "$EXPECTED" != "$ACTUAL" ]; then
             echo "::error::Toolchain drift detected: expected $EXPECTED, got $ACTUAL"
             exit 1
           fi
-      - run: lake build
+      - name: Verify fixed Lake toolchain
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("lake-manifest.json").read_text())
+          if manifest.get("fixedToolchain") is not True:
+              raise SystemExit("lake-manifest.json must set fixedToolchain=true")
+          PY
+      - name: Build all Lean targets
+        run: lake build --rehash Foundations PIRTM prime_tensors TestDriver
+      - name: Run Lean test driver
+        run: lake test
+      - name: Reject Lean proof debt
+        run: |
+          if grep -RIn "sorry" lean; then
+            echo "::error::sorry found in lean/"
+            exit 1
+          fi
+      - name: Test Rust workspace
+        run: cargo test --workspace --all-targets
+        working-directory: rust
+      - name: Verify governance artifact mirror
+        run: |
+          cmp docs/PIRTM-README-Claim-Table.md artifacts/PIRTM-README-Claim-Table.md
+          cmp docs/PIRTM-axiom-ledger.md artifacts/PIRTM-axiom-ledger.md
+          sha256sum -c docs/PIRTM-README-Claim-Table.md.sha256
+          sha256sum -c docs/PIRTM-axiom-ledger.md.sha256
+      - name: Verify ADR identity uniqueness
+        run: |
+          python3 - <<'PY'
+          import re
+          from collections import Counter
+          from pathlib import Path
+          roots = [Path("docs/adr/accepted"), Path("docs/adr/proposed")]
+          ids = []
+          for root in roots:
+              for path in root.glob("ADR-*.md"):
+                  match = re.match(r"ADR-(\d+)", path.name)
+                  if match:
+                      ids.append(match.group(1))
+          duplicates = [item for item, count in Counter(ids).items() if count > 1]
+          if duplicates:
+              raise SystemExit(f"duplicate ADR IDs: {duplicates}")
+          PY

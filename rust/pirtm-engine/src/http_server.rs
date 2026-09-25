@@ -39,18 +39,17 @@ impl GovernedHttpServer {
         tag_hasher.update(req_text.as_bytes());
         let qmhes_tag = hex::encode(tag_hasher.finalize());
 
-        // 2. Goldilocks Poseidon2 ZK Proof Acceleration (5,087 constraints)
+        // 2. Goldilocks Poseidon2 ZK Proof Acceleration
         let sample_val = (bytes_read as u64) % 18446744069414584321;
         let mut sponge = goldilocks::Poseidon2Sponge::new();
         sponge.absorb(&[sample_val, 0x42, 0x1337, 0x7777]);
         let p_receipt = sponge.squeeze();
         let goldilocks_proof_receipt = format!(
-            "POSEIDON2-ZK-SNARK-RECEIPT:0x{:x}{:x}{:x}{:x} (constraints={})",
+            "POSEIDON2-ZK-SNARK-RECEIPT:0x{:x}{:x}{:x}{:x}",
             p_receipt.hash_output[0],
             p_receipt.hash_output[1],
             p_receipt.hash_output[2],
-            p_receipt.hash_output[3],
-            p_receipt.constraint_count
+            p_receipt.hash_output[3]
         );
 
         // 3. Sentinel Governance Gate Verification (ADR-047)
@@ -88,21 +87,20 @@ impl GovernedHttpServer {
     }
 
     pub fn listen(&self, running: Arc<AtomicBool>) -> Result<(), String> {
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", self.port))
-            .map_err(|e| format!("Failed to bind port {}: {}", self.port, e))?;
-        listener
-            .set_nonblocking(true)
-            .map_err(|e| format!("Failed set nonblocking: {}", e))?;
-
+        let listener = TcpListener::bind(format!("127.0.0.1:{}", self.port)).map_err(|e| e.to_string())?;
+        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+        println!("GovernedHttpServer listening on port {}", self.port);
         while running.load(Ordering::SeqCst) {
             match listener.accept() {
                 Ok((stream, _)) => {
                     let _ = self.handle_connection(stream);
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                Err(e) => return Err(format!("Listener accept error: {}", e)),
+                Err(e) => {
+                    eprintln!("GovernedHttpServer accept error: {}", e);
+                }
             }
         }
         Ok(())

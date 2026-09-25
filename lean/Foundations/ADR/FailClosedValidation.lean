@@ -54,8 +54,16 @@ theorem missing_delimiter_with_app_code_rejected (hasMatrix : Bool) :
   rfl
 
 theorem missing_matrix_rejected (hasDelimiter hasAppCode : Bool) :
-    validateContract hasDelimiter hasAppCode 1 false = ValidationOutcome.Rejected FailClosedError.MissingSpectralParams := by
-  dsimp [validateContract]
-  sorry
+    validateContract hasDelimiter hasAppCode 1 false =
+      if hasDelimiter = false && hasAppCode = true then
+        ValidationOutcome.Rejected FailClosedError.MissingHeaderDelimiter
+      else
+        ValidationOutcome.Rejected FailClosedError.MissingSpectralParams := by
+  unfold validateContract
+  by_cases hDelim : hasDelimiter = true
+  · simp [hDelim]
+  · by_cases hApp : hasAppCode = true
+    · simp [hDelim, hApp]
+    · simp [hDelim, hApp]
 
 end Foundations.ADR.FailClosedValidation

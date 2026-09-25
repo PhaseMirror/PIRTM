@@ -69,7 +69,7 @@ def countVotes (votes : List ConsensusVote) : Nat × Nat :=
 
     **Theorem (ADR-050-VAI):** `passVotes + killVotes = totalVotes`.
 
-    Machine-checked with zero `sorry`. -/
+    Machine-checked without proof debt. -/
 theorem countVotes_sum_eq_length (votes : List ConsensusVote) :
     (countVotes votes).1 + (countVotes votes).2 = votes.length := by
   induction votes with
@@ -160,7 +160,7 @@ def clusterStatus (m : ClusterMetrics) : ConsensusStatus :=
     This is the canonical ADR-050 statement: `CLUSTER_PASS` is reached if and
     only if the pass vote count satisfies or exceeds the quorum threshold.
 
-    Zero `sorry`. Machine-checked in Lean 4 core (zero-Mathlib). -/
+    Machine-checked in Lean 4 core without proof debt. -/
 theorem cluster_consensus_quorum_soundness (passVotes quorumThreshold : Nat) :
     isQuorumReached passVotes quorumThreshold = true ↔ passVotes >= quorumThreshold := by
   dsimp [isQuorumReached]

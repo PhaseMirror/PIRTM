@@ -9,7 +9,7 @@ The logical transition relationships live here because the foundational `ADR`
 record in `Core.lean` is intentionally data-only (it carries `status` and a
 `supersedes : Option ADRId` field but no transition predicate).  Deﬁning the
 transition relation at the proof layer keeps the record minimal while still
-letting every invariant below be discharged without `sorry`.
+letting every invariant below be discharged without proof debt.
 
 Arithmetic-heavy soundness (e.g. genuine primality attribution for the
 `isPrimeBasis` helper in `PrimeQuantum.lean`) is deliberately *not* proven here

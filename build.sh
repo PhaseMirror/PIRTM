@@ -10,10 +10,19 @@ if [[ ! -f "lakefile.toml" ]] && [[ ! -f "lakefile.lean" ]]; then
   exit 1
 fi
 
-echo "Building PiLang Lean kernel..."
-lake build
+echo "Building all Lean targets..."
+lake build --rehash Foundations PIRTM prime_tensors TestDriver
 
 echo "Running Lean tests..."
 lake test
 
-echo "Build and test complete."
+echo "Running Rust workspace tests..."
+cargo test --workspace --all-targets
+
+echo "Checking Lean proof debt..."
+if grep -RIn "sorry" lean; then
+  echo "ERROR: executable or documented sorry found in lean/" >&2
+  exit 1
+fi
+
+echo "Build and verification complete."
