@@ -8,6 +8,9 @@ pub use cnl_bridge::*;
 pub mod sigma_conformance;
 pub use sigma_conformance::*;
 
+pub mod extension_checker;
+pub use extension_checker::*;
+
 // ---------------------------------------------------------------------------
 // ADR structural invariants (numeric ADR registry — supersession, cycles)
 // ---------------------------------------------------------------------------

@@ -10,6 +10,8 @@ description = "Deterministic zero-dependency ADR registry verifier and kernel gu
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 
 [[bin]]
 name = "adr-verifier"

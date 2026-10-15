@@ -1,16 +1,35 @@
-use adr_verifier::{AdrRegistry, KernelBoundaryConfig, PhaseMirrorRegistry};
+use adr_verifier::{
+    check_extension, AdrRegistry, ExtensionCheckRequest, KernelBoundaryConfig, LexicalAnchorTable,
+    PhaseMirrorRegistry,
+};
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let registry_path = args.get(1).map(|s| s.as_str()).unwrap_or("docs/adr/registry.json");
+
+    // Check for CNL subcommands
+    if let Some(cmd) = args.get(1) {
+        if cmd == "cnl" {
+            handle_cnl_command(&args);
+            return;
+        }
+    }
+
+    let registry_path = args
+        .get(1)
+        .map(|s| s.as_str())
+        .unwrap_or("docs/adr/registry.json");
 
     let contents = match fs::read_to_string(registry_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[ERROR] Failed to read registry file at {}: {}", registry_path, e);
+            eprintln!(
+                "[ERROR] Failed to read registry file at {}: {}",
+                registry_path, e
+            );
             process::exit(1);
         }
     };
@@ -18,13 +37,165 @@ fn main() {
     // Detect whether this is a PML runtime registry (v2.0) or a structural ADR registry.
     let is_pml = serde_json::from_str::<serde_json::Value>(&contents)
         .ok()
-        .and_then(|v| v.get("version").and_then(|v| v.as_str()).map(|s| s.starts_with("2.")))
+        .and_then(|v| {
+            v.get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.starts_with("2."))
+        })
         .unwrap_or(false);
 
     if is_pml {
         run_boundary_guard(&contents, registry_path);
     } else {
         run_structural_guard(&contents, registry_path);
+    }
+}
+
+fn handle_cnl_command(args: &[String]) {
+    let subcmd = args.get(2).map(|s| s.as_str()).unwrap_or("");
+    match subcmd {
+        "check-extension" => {
+            let token = match args.get(3) {
+                Some(t) if !t.starts_with("--") => t.clone(),
+                _ => {
+                    eprintln!("[FATAL] Usage: adr-verifier cnl check-extension <token> [--prime <P>] [--class <CLASS>] [--proof-path <PATH>] [--canon-hash <HASH>]");
+                    process::exit(1);
+                }
+            };
+
+            let mut proposed_prime: Option<u64> = None;
+            let mut proposed_class: Option<String> = None;
+            let mut proof_path: Option<PathBuf> = None;
+            let mut override_canon_hash: Option<String> = None;
+
+            let mut idx = 4;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--prime" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            match val.parse::<u64>() {
+                                Ok(p) => proposed_prime = Some(p),
+                                Err(e) => {
+                                    eprintln!("[FATAL] Invalid --prime '{}': {}", val, e);
+                                    process::exit(1);
+                                }
+                            }
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --prime requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--class" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            proposed_class = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --class requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--proof-path" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            proof_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --proof-path requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--canon-hash" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            override_canon_hash = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --canon-hash requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let req = ExtensionCheckRequest {
+                token,
+                proposed_prime,
+                proposed_class,
+                proof_path,
+                override_canon_hash,
+            };
+
+            match check_extension(&req) {
+                Ok(cert) => {
+                    println!(
+                        "[OK] CNL Lexicon Extension Permitted: token='{}', prime={}, class={}",
+                        cert.token, cert.prime_index, cert.class
+                    );
+                    println!("Certificate Hash: {}", cert.certificate_hash);
+                    if let Ok(json_str) = serde_json::to_string_pretty(&cert) {
+                        println!("{}", json_str);
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] CNL Lexicon Extension Refused: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
+        "list" => {
+            let table = LexicalAnchorTable::canonical();
+            println!(
+                "[OK] Canonical CNL Lexicon ({} tokens):",
+                adr_verifier::CANONICAL_TOKENS.len()
+            );
+            let mut entries = Vec::new();
+            for &tok in &adr_verifier::CANONICAL_TOKENS {
+                if let Some(entry) = table.lookup(tok) {
+                    entries.push((tok, entry.prime, entry.class, entry.is_alias));
+                }
+            }
+            entries.sort_by_key(|e| (e.1, e.0));
+            for (tok, prime, class, is_alias) in entries {
+                println!(
+                    "  {:15} prime={:<4} class={:<10} alias={}",
+                    tok,
+                    prime,
+                    format!("{:?}", class),
+                    is_alias
+                );
+            }
+            process::exit(0);
+        }
+        "verify-hash" => {
+            let hash = match args.get(3) {
+                Some(h) => h,
+                None => {
+                    eprintln!("[FATAL] Usage: adr-verifier cnl verify-hash <hash>");
+                    process::exit(1);
+                }
+            };
+            match LexicalAnchorTable::validate_lawful_recursion_hash(hash) {
+                Ok(()) => {
+                    println!("[OK] LawfulRecursionHash validated: {}", hash);
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] LawfulRecursionHash verification failed: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
+        _ => {
+            eprintln!(
+                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash",
+                subcmd
+            );
+            process::exit(1);
+        }
     }
 }
 
