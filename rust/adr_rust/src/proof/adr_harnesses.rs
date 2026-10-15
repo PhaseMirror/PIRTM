@@ -20,7 +20,7 @@ use std::collections::HashMap;
 #[cfg(kani)]
 #[kani::proof]
 fn verify_accepted_immutable() {
-    let id: AdrId = kani::any(.unwrap());
+    let id: AdrId = kani::any();
     kani::assume(id >= 1 && id <= 1000.unwrap());
 
     let mut adr = Adr::new(
@@ -48,9 +48,9 @@ fn verify_accepted_immutable() {
 #[cfg(kani)]
 #[kani::proof]
 fn verify_no_cycles_short_chain() {
-    let id1: AdrId = kani::any(.unwrap());
-    let id2: AdrId = kani::any(.unwrap());
-    let id3: AdrId = kani::any(.unwrap());
+    let id1: AdrId = kani::any();
+    let id2: AdrId = kani::any();
+    let id3: AdrId = kani::any();
     kani::assume(id1 >= 1 && id1 <= 100.unwrap());
     kani::assume(id2 >= 1 && id2 <= 100.unwrap());
     kani::assume(id3 >= 1 && id3 <= 100.unwrap());
@@ -58,11 +58,11 @@ fn verify_no_cycles_short_chain() {
     kani::assume(id2 != id3.unwrap());
     kani::assume(id1 != id3.unwrap());
 
-    let mut reg = AdrRegistry::new(.unwrap());
+    let mut reg = AdrRegistry::new();
 
-    let a1 = Adr::new(id1, "A1", "C1", "D1", vec![], vec![]).unwrap(.unwrap());
-    let a2 = Adr::new(id2, "A2", "C2", "D2", vec![], vec![]).unwrap(.unwrap());
-    let a3 = Adr::new(id3, "A3", "C3", "D3", vec![], vec![]).unwrap(.unwrap());
+    let a1 = Adr::new(id1, "A1", "C1", "D1", vec![], vec![]).unwrap();
+    let a2 = Adr::new(id2, "A2", "C2", "D2", vec![], vec![]).unwrap();
+    let a3 = Adr::new(id3, "A3", "C3", "D3", vec![], vec![]).unwrap();
 
     reg.insert(a1.unwrap());
     reg.insert(a2.unwrap());
@@ -93,16 +93,16 @@ fn verify_no_cycles_short_chain() {
 #[cfg(kani)]
 #[kani::proof]
 fn verify_accepted_traceability() {
-    let id1: AdrId = kani::any(.unwrap());
-    let id2: AdrId = kani::any(.unwrap());
+    let id1: AdrId = kani::any();
+    let id2: AdrId = kani::any();
     kani::assume(id1 >= 1 && id1 <= 100.unwrap());
     kani::assume(id2 >= 1 && id2 <= 100.unwrap());
     kani::assume(id1 != id2.unwrap());
 
-    let mut reg = AdrRegistry::new(.unwrap());
+    let mut reg = AdrRegistry::new();
 
-    let a1 = Adr::new(id1, "A1", "C1", "D1", vec![], vec![]).unwrap(.unwrap());
-    let a2 = Adr::new(id2, "A2", "C2", "D2", vec![], vec![]).unwrap(.unwrap());
+    let a1 = Adr::new(id1, "A1", "C1", "D1", vec![], vec![]).unwrap();
+    let a2 = Adr::new(id2, "A2", "C2", "D2", vec![], vec![]).unwrap();
 
     reg.insert(a1.unwrap());
     reg.insert(a2.unwrap());
@@ -121,7 +121,7 @@ fn verify_accepted_traceability() {
     }
 
     // Validate: all histories must be reconstructible.
-    let accepted = reg.validate_traceability(.unwrap());
+    let accepted = reg.validate_traceability();
     assert!(accepted.is_ok(), "Traceability failed: {:?}", accepted.unwrap());
 }
 
@@ -131,19 +131,19 @@ fn verify_accepted_traceability() {
 #[cfg(kani)]
 #[kani::proof]
 fn verify_consequence_entailment() {
-    let id: AdrId = kani::any(.unwrap());
+    let id: AdrId = kani::any();
     kani::assume(id >= 1 && id <= 1000.unwrap());
 
-    let decision_len: u64 = kani::any(.unwrap());
-    let context_len: u64 = kani::any(.unwrap());
+    let decision_len: u64 = kani::any();
+    let context_len: u64 = kani::any();
     kani::assume(decision_len >= 1 && decision_len <= 50.unwrap());
     kani::assume(context_len >= 1 && context_len <= 50.unwrap());
 
-    let decision = "x".repeat(decision_len as usize.unwrap());
-    let context = "y".repeat(context_len as usize.unwrap());
+    let decision = "x".repeat(decision_len as usize);
+    let context = "y".repeat(context_len as usize);
     let consequence = "xy";
 
-    let mut reg = AdrRegistry::new(.unwrap());
+    let mut reg = AdrRegistry::new();
     let adr = Adr::new(id, "Title", context, decision, vec![consequence.to_string()], vec![]).unwrap();
     reg.insert(adr.unwrap());
 
@@ -156,10 +156,10 @@ fn verify_consequence_entailment() {
 #[cfg(kani)]
 #[kani::proof]
 fn verify_full_registry_invariants() {
-    let n: u64 = kani::any(.unwrap());
+    let n: u64 = kani::any();
     kani::assume(n >= 3 && n <= 5.unwrap());
 
-    let mut reg = AdrRegistry::new(.unwrap());
+    let mut reg = AdrRegistry::new();
 
     for i in 1..=n {
         let adr = Adr::new(
@@ -169,8 +169,8 @@ fn verify_full_registry_invariants() {
             format!("Decision for ADR {:04}", i),
             vec![format!("Consequence {}", i)],
             vec![],
-        .unwrap());
-        reg.insert(adr.unwrap().unwrap());
+        ).unwrap();
+        reg.insert(adr);
     }
 
     // Transition some to Accepted, some to Deprecated, chain one supersession.
