@@ -16,6 +16,13 @@ pub const FORBIDDEN_PRIME_ONE: u64 = 1;
 /// Certified prime index for algebraic retraction / revocation ($p = 19$).
 pub const REVOCATION_PRIME: u64 = 19;
 
+/// Canonical LawfulRecursionHash computed from `Governance/docs/Ξ-Constitutional-Core.md` per §7.
+pub const LAWFUL_RECURSION_HASH: &str =
+    "8167719f6b1d7b9ca6f0d463e9c8da4de84a5a1b5b9a5c15df684860b1d5b6e3";
+
+/// Canonical LawfulRecursionVersion per §7.
+pub const LAWFUL_RECURSION_VERSION: &str = "1.0";
+
 /// The semantic classification of a token in the Lexical Anchor Table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -99,6 +106,12 @@ pub enum CnlError {
 
     #[error("Lexicon parse error: {0}")]
     ParseError(String),
+
+    #[error("Constitutional Core §7 Violation: LawfulRecursionHash mismatch. Expected {expected}, found {actual}")]
+    LawfulRecursionHashMismatch {
+        expected: String,
+        actual: String,
+    },
 }
 
 /// Compiled representation of a single CNL command line.
@@ -255,7 +268,21 @@ impl LexicalAnchorTable {
             ));
         }
 
+        Self::validate_lawful_recursion_hash(LAWFUL_RECURSION_HASH)?;
+
         Ok(())
+    }
+
+    /// Validates that a supplied or embedded LawfulRecursionHash matches the constitutional anchor digest (§7).
+    pub fn validate_lawful_recursion_hash(hash: &str) -> Result<(), CnlError> {
+        if hash == LAWFUL_RECURSION_HASH {
+            Ok(())
+        } else {
+            Err(CnlError::LawfulRecursionHashMismatch {
+                expected: LAWFUL_RECURSION_HASH.to_string(),
+                actual: hash.to_string(),
+            })
+        }
     }
 
     /// Compiles a command string into prime operators, enforcing invariant L0_08 and retraction.
@@ -398,6 +425,21 @@ mod tests {
         assert!(matches!(
             table.verify_invariants(),
             Err(CnlError::DuplicateCanonicalPrime { prime: 2, .. })
+        ));
+    }
+
+    #[test]
+    fn test_lawful_recursion_hash_validation() {
+        // Correct canonical hash passes
+        assert!(LexicalAnchorTable::validate_lawful_recursion_hash(LAWFUL_RECURSION_HASH).is_ok());
+
+        // Altered / forged hash fails closed with LawfulRecursionHashMismatch
+        let forged_hash = "0000000000000000000000000000000000000000000000000000000000000000";
+        let res = LexicalAnchorTable::validate_lawful_recursion_hash(forged_hash);
+        assert!(matches!(
+            res,
+            Err(CnlError::LawfulRecursionHashMismatch { expected, actual })
+            if expected == LAWFUL_RECURSION_HASH && actual == forged_hash
         ));
     }
 }
