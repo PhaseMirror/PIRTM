@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
+pub mod cnl_bridge;
+pub use cnl_bridge::*;
+
 // ---------------------------------------------------------------------------
 // ADR structural invariants (numeric ADR registry — supersession, cycles)
 // ---------------------------------------------------------------------------
