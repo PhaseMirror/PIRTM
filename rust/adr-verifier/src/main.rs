@@ -1,6 +1,7 @@
 use adr_verifier::{
-    check_extension, AdrRegistry, ExtensionCheckRequest, KernelBoundaryConfig, LexicalAnchorTable,
-    PhaseMirrorRegistry,
+    append_certificate_to_ledger, check_extension, load_ledger, resolve_ledger_path,
+    verify_ledger_chain, AdrRegistry, ExtensionCheckRequest, KernelBoundaryConfig,
+    LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
 };
 use std::env;
 use std::fs;
@@ -67,6 +68,8 @@ fn handle_cnl_command(args: &[String]) {
             let mut proposed_class: Option<String> = None;
             let mut proof_path: Option<PathBuf> = None;
             let mut override_canon_hash: Option<String> = None;
+            let mut custom_ledger_path: Option<PathBuf> = None;
+            let mut no_ledger = false;
 
             let mut idx = 4;
             while idx < args.len() {
@@ -113,6 +116,19 @@ fn handle_cnl_command(args: &[String]) {
                             process::exit(1);
                         }
                     }
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            custom_ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--no-ledger" => {
+                        no_ledger = true;
+                        idx += 1;
+                    }
                     other => {
                         eprintln!("[FATAL] Unknown flag '{}'", other);
                         process::exit(1);
@@ -138,6 +154,29 @@ fn handle_cnl_command(args: &[String]) {
                     if let Ok(json_str) = serde_json::to_string_pretty(&cert) {
                         println!("{}", json_str);
                     }
+
+                    if !no_ledger {
+                        let ledger_path = resolve_ledger_path(custom_ledger_path.as_deref());
+                        match append_certificate_to_ledger(&ledger_path, &cert, None) {
+                            Ok(entry) => {
+                                println!(
+                                    "[LEDGER] Appended certificate to '{}' (seq={}, entry_hash={})",
+                                    ledger_path.display(),
+                                    entry.sequence,
+                                    entry.entry_hash
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "[FATAL] Failed to append certificate to ledger '{}': {}",
+                                    ledger_path.display(),
+                                    e
+                                );
+                                process::exit(1);
+                            }
+                        }
+                    }
+
                     process::exit(0);
                 }
                 Err(e) => {
@@ -189,9 +228,108 @@ fn handle_cnl_command(args: &[String]) {
                 }
             }
         }
+        "verify-ledger" => {
+            let mut ledger_path: Option<PathBuf> = None;
+            let mut idx = 3;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let path = resolve_ledger_path(ledger_path.as_deref());
+            match load_ledger(&path) {
+                Ok(entries) => {
+                    match verify_ledger_chain(&entries) {
+                        Ok(()) => {
+                            let head_hash = entries
+                                .last()
+                                .map(|e| e.entry_hash.as_str())
+                                .unwrap_or(GENESIS_PREV_HASH);
+                            println!(
+                                "[OK] CNL Extension Ledger verified: {} entries, chain valid, head={}",
+                                entries.len(),
+                                head_hash
+                            );
+                            process::exit(0);
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "[FATAL] Ledger verification failed for '{}': {}",
+                                path.display(),
+                                e
+                            );
+                            process::exit(1);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] Failed to load ledger '{}': {}", path.display(), e);
+                    process::exit(1);
+                }
+            }
+        }
+        "ledger-head" => {
+            let mut ledger_path: Option<PathBuf> = None;
+            let mut idx = 3;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let path = resolve_ledger_path(ledger_path.as_deref());
+            match load_ledger(&path) {
+                Ok(entries) => {
+                    if let Some(last) = entries.last() {
+                        println!(
+                            "[OK] Ledger Head: seq={}, hash={}, token='{}', prime={}",
+                            last.sequence,
+                            last.entry_hash,
+                            last.certificate.token,
+                            last.certificate.prime_index
+                        );
+                        if let Ok(json_str) = serde_json::to_string_pretty(last) {
+                            println!("{}", json_str);
+                        }
+                    } else {
+                        println!("[OK] Ledger at '{}' is empty", path.display());
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] Failed to read ledger '{}': {}", path.display(), e);
+                    process::exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash",
+                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head",
                 subcmd
             );
             process::exit(1);

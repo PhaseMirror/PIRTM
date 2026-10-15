@@ -11,6 +11,9 @@ pub use sigma_conformance::*;
 pub mod extension_checker;
 pub use extension_checker::*;
 
+pub mod extension_ledger;
+pub use extension_ledger::*;
+
 // ---------------------------------------------------------------------------
 // ADR structural invariants (numeric ADR registry — supersession, cycles)
 // ---------------------------------------------------------------------------

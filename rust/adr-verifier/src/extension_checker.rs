@@ -379,7 +379,7 @@ pub fn check_extension(
     })
 }
 
-fn compute_certificate_hash(
+pub fn compute_certificate_hash(
     token: &str,
     prime: u64,
     class: &str,
