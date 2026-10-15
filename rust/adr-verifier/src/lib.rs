@@ -5,6 +5,9 @@ use thiserror::Error;
 pub mod cnl_bridge;
 pub use cnl_bridge::*;
 
+pub mod sigma_conformance;
+pub use sigma_conformance::*;
+
 // ---------------------------------------------------------------------------
 // ADR structural invariants (numeric ADR registry — supersession, cycles)
 // ---------------------------------------------------------------------------
@@ -68,7 +71,8 @@ pub enum VerificationError {
 
 impl AdrRegistry {
     pub fn from_json_str(json_str: &str) -> Result<Self, VerificationError> {
-        serde_json::from_str(json_str).map_err(|e| VerificationError::Deserialization(e.to_string()))
+        serde_json::from_str(json_str)
+            .map_err(|e| VerificationError::Deserialization(e.to_string()))
     }
 
     /// Verifies all architectural invariants:
@@ -299,9 +303,7 @@ impl PhaseMirrorRegistry {
             }
         }
         if !self.lean.sorry_manifested {
-            return Err(BoundaryViolation::SorryNotManifested {
-                manifested: false,
-            });
+            return Err(BoundaryViolation::SorryNotManifested { manifested: false });
         }
 
         // --- axiom boundary ---
@@ -314,9 +316,7 @@ impl PhaseMirrorRegistry {
             }
         }
         if !self.lean.axioms_manifested {
-            return Err(BoundaryViolation::AxiomNotManifested {
-                manifested: false,
-            });
+            return Err(BoundaryViolation::AxiomNotManifested { manifested: false });
         }
 
         // --- manifest invariants ---
@@ -570,7 +570,10 @@ mod tests {
         reg.tensions.total_score = 8.0;
         assert!(matches!(
             reg.verify_boundary(&KernelBoundaryConfig::default()),
-            Err(BoundaryViolation::OpenTensions { count: 1, score: 8.0 })
+            Err(BoundaryViolation::OpenTensions {
+                count: 1,
+                score: 8.0
+            })
         ));
     }
 
@@ -598,9 +601,9 @@ mod tests {
     #[test]
     fn test_boundary_accepts_live_fixture() {
         let json = include_str!("../../../state/adr_plan_registry.json");
-        let reg = PhaseMirrorRegistry::from_json_str(json)
-            .expect("Live fixture should parse");
+        let reg = PhaseMirrorRegistry::from_json_str(json).expect("Live fixture should parse");
         let config = KernelBoundaryConfig::default();
-        reg.verify_boundary(&config).expect("Live fixture should pass boundary guard");
+        reg.verify_boundary(&config)
+            .expect("Live fixture should pass boundary guard");
     }
 }
