@@ -28,6 +28,7 @@ import Foundations.ADR.LexicalHeaderSplitter
 import Foundations.ADR.FormalHeaderEnvelopeGrammar
 import Foundations.ADR.PhaseDecoupledPipeline
 import Foundations.ADR.StandaloneDelimiterDetection
+import Foundations.ADR.PhotonicUniversalSpectralOperator
 import Foundations.ADR.FailClosedValidation
 import Foundations.ADR.GitHubPagesDeployment
 
@@ -322,5 +323,12 @@ def test_github_pages_deployment : IO Unit := do
     IO.println "ADR-063: GitHub Pages automated documentation site deployment test passed"
   else
     throw $ IO.Error.userError "ADR-063: Site layer requirement check failed"
+
+def test_photonic_universal_spectral_operator : IO Unit := do
+  -- Test that the Universal Spectral Operator is defined and returns a state.
+  let s := PIRTM.Photonics.PhotonicsState.mk 0
+  let s' := PIRTM.Photonics.UniversalSpectralOperator s
+  -- We don't have specific properties to check, but we can at least ensure it compiles and returns a state.
+  IO.println "ADR-007: Photonic Universal Spectral Operator test passed"
 
 

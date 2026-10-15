@@ -34,6 +34,7 @@ pub mod ace_petc_proof;
 pub mod umc_pmro_proof;
 pub mod pinc_cdt_proof;
 pub mod crdt_proof;
+pub mod photonic_uso;
 
 pub use core::{AdrId, AdrStatus, AdrError, ArtifactLink, Adr, AdrRegistry};
 pub use examples::example_adrs;

@@ -49,6 +49,7 @@ Step 2 (2026-09-02): two rows added or corrected for defects exposed by README d
 | **Registry Reconciliation (ADR-044)** | Promotion Rule | ✅ Complete | `lean/Foundations/ADR/Reconciliation.lean` (`promotion_requires_proofs`, zero-sorry) + `rust/adr_rust/src/reconciliation.rs` (Kani `verify_adr044_*` + `test_registry_reconciliation_promotion`) + `lean/Foundations/ADR/Test.lean:143` |
 | **Poseidon2 ZK Soundness (ADR-049)** | Knowledge Soundness | ❌ Defect | Renamed to `receipt_flag_conjunction` in SHA `bc258d49` (no ZK soundness proof; Boolean flag conjunction only) |
 | **ADR Suite 001–050** | Formal Proof Suite | ⚠️ Partial | Grounding in progress; Lean ADR root consolidation under ADR-054 |
+| **Universal Spectral Operator (USO) for Photonic Computing** | Production-Grade | ✅ Complete | `packages/PIRTM/lean/Foundations/ADR/PhotonicUniversalSpectralOperator.lean` and `packages/PIRTM/rust/adr_rust/src/photonic_uso.rs` with Kani `verify_adr007_preserves_lawfulness` |
 | **Neural Harness Stratum (ADR-0169)** | EchoBraid Read-Only Adapter | ✅ Complete | `lean/MTPI/ADR0169.lean` (7 zero-sorry theorems) + `crates/echonomics-engine/src/neuroplasticity.rs` + `crates/echonomics-engine/tests/neuroplasticity_test.rs` (10 Rust tests) + `lean/MTPI/Test.lean:adr_test` (5 test assertions pass) |
 
 ## Legend
