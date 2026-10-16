@@ -939,7 +939,7 @@ mod tests {
     use super::*;
     use std::fs;
     use crate::extension_checker::{check_extension, ExtensionCertificate, ExtensionCheckRequest};
-    use crate::extension_ledger::append_certificate_to_ledger;
+    use crate::extension_ledger::{append_certificate_to_ledger, load_ledger, sync_ledger_with_peer};
 
     struct TempLedgerFile {
         path: PathBuf,
@@ -1448,4 +1448,166 @@ mod tests {
         stop_server.store(true, Ordering::Relaxed);
         let _ = handle_b.join();
     }
+
+    #[test]
+    fn test_multi_node_mutual_authenticated_gossip_distinct_keys() {
+        let tmp_alpha = TempLedgerFile::new();
+        let tmp_beta = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2 = make_test_cert("scale", 3, "verb");
+        let cert3 = make_test_cert("verify", 13, "verb");
+
+        // Initial state:
+        // Alpha has cert1 (sequence 1)
+        append_certificate_to_ledger(&tmp_alpha.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        // Beta has cert1 and cert2 (sequence 2)
+        append_certificate_to_ledger(&tmp_beta.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_beta.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        // Distinct asymmetric credential configurations:
+        // Alpha requires incoming frames to be signed by "peer-beta" using "secret-beta-to-alpha-key"
+        let auth_alpha = GossipAuthConfig::new()
+            .with_peer("peer-beta", "secret-beta-to-alpha-key")
+            .with_max_skew(10);
+        let server_alpha = GossipHttpServer::bind_authenticated("127.0.0.1:0", tmp_alpha.path.clone(), auth_alpha).unwrap();
+        let addr_alpha = server_alpha.local_addr().unwrap();
+
+        // Beta requires incoming frames to be signed by "peer-alpha" using "secret-alpha-to-beta-key"
+        let auth_beta = GossipAuthConfig::new()
+            .with_peer("peer-alpha", "secret-alpha-to-beta-key")
+            .with_max_skew(10);
+        let server_beta = GossipHttpServer::bind_authenticated("127.0.0.1:0", tmp_beta.path.clone(), auth_beta).unwrap();
+        let addr_beta = server_beta.local_addr().unwrap();
+
+        let stop_alpha = Arc::new(AtomicBool::new(false));
+        let stop_alpha_clone = stop_alpha.clone();
+        let handle_alpha = std::thread::spawn(move || {
+            server_alpha.serve_with_stop_flag(stop_alpha_clone)
+        });
+
+        let stop_beta = Arc::new(AtomicBool::new(false));
+        let stop_beta_clone = stop_beta.clone();
+        let handle_beta = std::thread::spawn(move || {
+            server_beta.serve_with_stop_flag(stop_beta_clone)
+        });
+
+        let url_alpha = format!("127.0.0.1:{}", addr_alpha.port());
+        let url_beta = format!("127.0.0.1:{}", addr_beta.port());
+
+        let key_alpha_to_beta = PeerIdentityKey::new("peer-alpha", "secret-alpha-to-beta-key");
+        let key_beta_to_alpha = PeerIdentityKey::new("peer-beta", "secret-beta-to-alpha-key");
+
+        // --- STEP 1: Rejection verification (0 unauthenticated frames accepted, 100% invalid rejected) ---
+
+        // 1a. Unauthenticated GET /head to Alpha fails with 401
+        let err_unauth_a = http_get_head(&url_alpha);
+        assert!(err_unauth_a.is_err());
+        assert!(err_unauth_a.unwrap_err().contains("401"));
+
+        // 1b. Unauthenticated GET /head to Beta fails with 401
+        let err_unauth_b = http_get_head(&url_beta);
+        assert!(err_unauth_b.is_err());
+        assert!(err_unauth_b.unwrap_err().contains("401"));
+
+        // 1c. Rogue peer with unknown ID fails with 401
+        let rogue_key = PeerIdentityKey::new("rogue-intruder", "secret-beta-to-alpha-key");
+        let err_rogue = http_get_head_authenticated(&url_alpha, &rogue_key, "head");
+        assert!(err_rogue.is_err());
+        assert!(err_rogue.unwrap_err().contains("401"));
+
+        // 1d. Signature mismatch (peer-alpha presenting wrong secret to Beta) fails with 401
+        let wrong_key = PeerIdentityKey::new("peer-alpha", "tampered-secret-xyz");
+        let err_sig = http_get_head_authenticated(&url_beta, &wrong_key, "head");
+        assert!(err_sig.is_err());
+        assert!(err_sig.unwrap_err().contains("401"));
+
+        // 1e. Clock skew violation (stale timestamp) fails with 401
+        let stale_ts = chrono::Utc::now().timestamp() - 300;
+        let sig_stale = compute_peer_request_signature(
+            "secret-beta-to-alpha-key",
+            "peer-beta",
+            "GET",
+            "/head",
+            stale_ts,
+            "head",
+            b"",
+        );
+        let mut stream = TcpStream::connect(addr_alpha).unwrap();
+        let req_stale = format!(
+            "GET /head HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nX-Peer-Id: peer-beta\r\nX-Timestamp: {}\r\nX-Ledger-Head: head\r\nX-Peer-Signature: {}\r\n\r\n",
+            addr_alpha, stale_ts, sig_stale
+        );
+        stream.write_all(req_stale.as_bytes()).unwrap();
+        let mut resp_stale = String::new();
+        stream.read_to_string(&mut resp_stale).unwrap();
+        let (status_code, body) = parse_http_response(&resp_stale).unwrap();
+        assert_eq!(status_code, 401);
+        assert!(body.contains("Clock skew exceeded"));
+
+        // --- STEP 2: Mutual authenticated gossip synchronization ---
+
+        // 2a. Peer Alpha polls Peer Beta head
+        let head_beta = http_get_head_authenticated(&url_beta, &key_alpha_to_beta, "head")
+            .expect("Alpha authenticated GET /head on Beta succeeds");
+        assert_eq!(head_beta.sequence, 2);
+
+        // 2b. Peer Alpha fetches Peer Beta ledger
+        let ledger_beta = http_get_ledger_authenticated(&url_beta, &key_alpha_to_beta, &head_beta.head_hash)
+            .expect("Alpha authenticated GET /ledger on Beta succeeds");
+        assert_eq!(ledger_beta.len(), 2);
+
+        // 2c. Peer Alpha syncs its local ledger with Beta's forward extension
+        let sync_res_alpha = sync_ledger_with_peer(&tmp_alpha.path, &ledger_beta, false).unwrap();
+        match sync_res_alpha {
+            GossipSyncResult::Advanced { prior_sequence, new_sequence, entries_appended, .. } => {
+                assert_eq!(prior_sequence, 1);
+                assert_eq!(new_sequence, 2);
+                assert_eq!(entries_appended, 1);
+            }
+            _ => panic!("Expected Advanced sync on Alpha"),
+        }
+        let alpha_entries = load_ledger(&tmp_alpha.path).unwrap();
+        assert_eq!(alpha_entries.len(), 2);
+
+        // 2d. Peer Alpha locally appends cert3 (advancing to sequence 3)
+        append_certificate_to_ledger(&tmp_alpha.path, &cert3, Some("2026-10-16T00:02:00Z".to_string())).unwrap();
+        let alpha_entries_v3 = load_ledger(&tmp_alpha.path).unwrap();
+        assert_eq!(alpha_entries_v3.len(), 3);
+
+        // 2e. Peer Beta polls Peer Alpha head
+        let head_alpha = http_get_head_authenticated(&url_alpha, &key_beta_to_alpha, "head")
+            .expect("Beta authenticated GET /head on Alpha succeeds");
+        assert_eq!(head_alpha.sequence, 3);
+
+        // 2f. Peer Beta fetches ledger from Alpha and syncs
+        let ledger_alpha = http_get_ledger_authenticated(&url_alpha, &key_beta_to_alpha, &head_alpha.head_hash)
+            .expect("Beta authenticated GET /ledger on Alpha succeeds");
+        assert_eq!(ledger_alpha.len(), 3);
+
+        let sync_res_beta = sync_ledger_with_peer(&tmp_beta.path, &ledger_alpha, false).unwrap();
+        match sync_res_beta {
+            GossipSyncResult::Advanced { prior_sequence, new_sequence, entries_appended, .. } => {
+                assert_eq!(prior_sequence, 2);
+                assert_eq!(new_sequence, 3);
+                assert_eq!(entries_appended, 1);
+            }
+            _ => panic!("Expected Advanced sync on Beta"),
+        }
+
+        // 2g. Both nodes now possess identical 3-entry ledgers with matching head hash
+        let final_alpha = load_ledger(&tmp_alpha.path).unwrap();
+        let final_beta = load_ledger(&tmp_beta.path).unwrap();
+        assert_eq!(final_alpha.len(), 3);
+        assert_eq!(final_beta.len(), 3);
+        assert_eq!(final_alpha.last().unwrap().entry_hash, final_beta.last().unwrap().entry_hash);
+
+        // --- STEP 3: Clean shutdown ---
+        stop_alpha.store(true, Ordering::Relaxed);
+        let _ = handle_alpha.join();
+
+        stop_beta.store(true, Ordering::Relaxed);
+        let _ = handle_beta.join();
+    }
 }
+
