@@ -1,9 +1,12 @@
 use adr_verifier::{
     append_certificate_to_ledger, check_extension, get_ledger_head_announcement, http_get_head,
-    http_post_sync, load_ledger, resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain,
-    AdrRegistry, ExtensionCheckRequest, GossipHttpServer, GossipSyncDaemon, GossipSyncResult,
-    KernelBoundaryConfig, LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
+    http_get_head_authenticated, http_post_sync, http_post_sync_authenticated, load_ledger,
+    resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain, AdrRegistry,
+    ExtensionCheckRequest, GossipAuthConfig, GossipHttpServer, GossipSyncDaemon, GossipSyncResult,
+    KernelBoundaryConfig, LexicalAnchorTable, PeerIdentityKey, PhaseMirrorRegistry,
+    GENESIS_PREV_HASH,
 };
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -463,6 +466,11 @@ fn handle_cnl_command(args: &[String]) {
         "serve-gossip" => {
             let mut addr = "127.0.0.1:8080".to_string();
             let mut ledger_path: Option<PathBuf> = None;
+            let mut auth_peers: HashMap<String, String> = HashMap::new();
+            let mut single_peer_id: Option<String> = None;
+            let mut single_secret: Option<String> = None;
+            let mut max_skew: i64 = 60;
+
             let mut idx = 3;
             while idx < args.len() {
                 match args[idx].as_str() {
@@ -484,6 +492,46 @@ fn handle_cnl_command(args: &[String]) {
                             process::exit(1);
                         }
                     }
+                    "--auth-peers" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            for pair in val.split(',') {
+                                if let Some((p, s)) = pair.split_once(':') {
+                                    auth_peers.insert(p.trim().to_string(), s.trim().to_string());
+                                }
+                            }
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --auth-peers requires a comma-separated list of PEER:SECRET pairs");
+                            process::exit(1);
+                        }
+                    }
+                    "--peer-id" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            single_peer_id = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --peer-id requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--secret" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            single_secret = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --secret requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--max-skew" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            max_skew = val.parse().unwrap_or(60);
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --max-skew requires seconds");
+                            process::exit(1);
+                        }
+                    }
                     other => {
                         eprintln!("[FATAL] Unknown flag '{}'", other);
                         process::exit(1);
@@ -491,8 +539,22 @@ fn handle_cnl_command(args: &[String]) {
                 }
             }
 
+            if let (Some(pid), Some(sec)) = (single_peer_id, single_secret) {
+                auth_peers.insert(pid, sec);
+            }
+
             let path = resolve_ledger_path(ledger_path.as_deref());
-            let server = match GossipHttpServer::bind(&addr, path.clone()) {
+            let server_res = if !auth_peers.is_empty() {
+                let mut auth_cfg = GossipAuthConfig::new().with_max_skew(max_skew);
+                for (p, s) in auth_peers {
+                    auth_cfg = auth_cfg.with_peer(p, s);
+                }
+                GossipHttpServer::bind_authenticated(&addr, path.clone(), auth_cfg)
+            } else {
+                GossipHttpServer::bind(&addr, path.clone())
+            };
+
+            let server = match server_res {
                 Ok(s) => s,
                 Err(e) => {
                     eprintln!("[FATAL] Failed to bind HTTP server to '{}': {}", addr, e);
@@ -518,11 +580,65 @@ fn handle_cnl_command(args: &[String]) {
             let remote_url = match args.get(3) {
                 Some(u) => u.clone(),
                 None => {
-                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-head <HTTP_URL_OR_ADDR>");
+                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-head <HTTP_URL_OR_ADDR> [--peer-id <ID> --secret <SECRET>] [--ledger <LOCAL_LEDGER>]");
                     process::exit(1);
                 }
             };
-            match http_get_head(&remote_url) {
+
+            let mut peer_id: Option<String> = None;
+            let mut secret: Option<String> = None;
+            let mut ledger_path: Option<PathBuf> = None;
+
+            let mut idx = 4;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--peer-id" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            peer_id = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --peer-id requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--secret" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            secret = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --secret requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let announcement_res = if let (Some(pid), Some(sec)) = (peer_id, secret) {
+                let key = PeerIdentityKey::new(pid, sec);
+                let path = resolve_ledger_path(ledger_path.as_deref());
+                let local_head = load_ledger(&path)
+                    .ok()
+                    .and_then(|entries| entries.last().map(|e| e.entry_hash.clone()))
+                    .unwrap_or_else(|| GENESIS_PREV_HASH.to_string());
+                http_get_head_authenticated(&remote_url, &key, &local_head)
+            } else {
+                http_get_head(&remote_url)
+            };
+
+            match announcement_res {
                 Ok(announcement) => {
                     println!(
                         "[OK] Remote Gossip Head: seq={}, hash={}, count={}, ts={}",
@@ -546,12 +662,15 @@ fn handle_cnl_command(args: &[String]) {
             let remote_url = match args.get(3) {
                 Some(u) => u.clone(),
                 None => {
-                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-sync <HTTP_URL_OR_ADDR> [--ledger <LOCAL_LEDGER>]");
+                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-sync <HTTP_URL_OR_ADDR> [--ledger <LOCAL_LEDGER>] [--peer-id <ID> --secret <SECRET>]");
                     process::exit(1);
                 }
             };
 
             let mut local_ledger_path: Option<PathBuf> = None;
+            let mut peer_id: Option<String> = None;
+            let mut secret: Option<String> = None;
+
             let mut idx = 4;
             while idx < args.len() {
                 match args[idx].as_str() {
@@ -561,6 +680,24 @@ fn handle_cnl_command(args: &[String]) {
                             idx += 2;
                         } else {
                             eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--peer-id" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            peer_id = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --peer-id requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--secret" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            secret = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --secret requires an argument");
                             process::exit(1);
                         }
                     }
@@ -579,8 +716,16 @@ fn handle_cnl_command(args: &[String]) {
                     process::exit(1);
                 }
             };
+            let local_ann = get_ledger_head_announcement(&local_entries);
 
-            match http_post_sync(&remote_url, &local_entries) {
+            let sync_res = if let (Some(pid), Some(sec)) = (peer_id, secret) {
+                let key = PeerIdentityKey::new(pid, sec);
+                http_post_sync_authenticated(&remote_url, &local_entries, &key, &local_ann.head_hash)
+            } else {
+                http_post_sync(&remote_url, &local_entries)
+            };
+
+            match sync_res {
                 Ok(result) => {
                     match result {
                         GossipSyncResult::InSync { sequence, head_hash } => {
@@ -625,6 +770,8 @@ fn handle_cnl_command(args: &[String]) {
             let mut interval_ms: u64 = 5000;
             let mut ledger_path: Option<PathBuf> = None;
             let mut run_once = false;
+            let mut peer_id: Option<String> = None;
+            let mut secret: Option<String> = None;
 
             let mut idx = 3;
             while idx < args.len() {
@@ -660,6 +807,24 @@ fn handle_cnl_command(args: &[String]) {
                             process::exit(1);
                         }
                     }
+                    "--peer-id" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            peer_id = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --peer-id requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--secret" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            secret = Some(val.clone());
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --secret requires an argument");
+                            process::exit(1);
+                        }
+                    }
                     "--once" => {
                         run_once = true;
                         idx += 1;
@@ -673,13 +838,18 @@ fn handle_cnl_command(args: &[String]) {
 
             if peers.is_empty() {
                 eprintln!(
-                    "[FATAL] Usage: adr-verifier cnl sync-daemon --peers <PEER1,PEER2> [--interval <MS>] [--ledger <PATH>] [--once]"
+                    "[FATAL] Usage: adr-verifier cnl sync-daemon --peers <PEER1,PEER2> [--interval <MS>] [--ledger <PATH>] [--peer-id <ID> --secret <SECRET>] [--once]"
                 );
                 process::exit(1);
             }
 
             let path = resolve_ledger_path(ledger_path.as_deref());
-            let daemon = GossipSyncDaemon::new(path.clone(), peers.clone(), interval_ms);
+            let daemon = if let (Some(pid), Some(sec)) = (peer_id, secret) {
+                let key = PeerIdentityKey::new(pid, sec);
+                GossipSyncDaemon::new_authenticated(path.clone(), peers.clone(), interval_ms, key)
+            } else {
+                GossipSyncDaemon::new(path.clone(), peers.clone(), interval_ms)
+            };
 
             if run_once {
                 let reports = daemon.run_once();
