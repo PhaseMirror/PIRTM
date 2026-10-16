@@ -733,4 +733,94 @@ mod tests {
         let ratio = res.unwrap();
         assert!((ratio - 0.7).abs() < 1e-9, "Contraction ratio should equal 0.7: {}", ratio);
     }
+
+    #[test]
+    fn test_gram_matrix_computation() {
+        let primes = [2u64, 3, 5];
+        let v1 = vec![1.0, 2.0, 3.0];
+        let v2 = vec![0.5, 1.0, 1.5];
+        let gram = compute_gram_matrix(&[v1.clone(), v2.clone()], &primes).unwrap();
+        assert_eq!(gram.len(), 2);
+        assert_eq!(gram[0].len(), 2);
+
+        // Check symmetry
+        assert_eq!(gram[0][1], gram[1][0]);
+
+        // G_00 = v1 · v1 / ln(p)
+        let expected_g00 = 1.0 / 2.0f64.ln() + 4.0 / 3.0f64.ln() + 9.0 / 5.0f64.ln();
+        assert!((gram[0][0] - expected_g00).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_gram_spectral_gap_power_iteration() {
+        let primes = [2u64, 3, 5];
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![0.0, 1.0, 0.0];
+        let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
+
+        let (lambda_min, lambda_max, kappa) = compute_gram_spectral_gap(&gram, None).unwrap();
+        assert!(lambda_min > 0.0);
+        assert!(lambda_max >= lambda_min);
+        assert!(kappa >= 1.0);
+        let expected_min = 1.0 / 3.0f64.ln();
+        let expected_max = 1.0 / 2.0f64.ln();
+        assert!((lambda_min - expected_min).abs() < 1e-6);
+        assert!((lambda_max - expected_max).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_eigenvalue_collapse_rejection() {
+        // Linearly dependent vectors create singular Gram matrix (det = 0, lambda_min = 0)
+        let primes = [2u64, 3, 5];
+        let v1 = vec![1.0, 2.0, 3.0];
+        let v2 = vec![2.0, 4.0, 6.0]; // Exactly 2 * v1
+        let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
+
+        let res = compute_gram_spectral_gap(&gram, Some(1e-6));
+        assert!(res.is_err(), "Linearly dependent vectors must be rejected");
+        let err = res.unwrap_err();
+        assert!(
+            err.contains("eigenvalue collapse") || err.contains("diverges"),
+            "Expected eigenvalue collapse error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_margin_guard_rejection_when_margin_le_perturbation() {
+        let m = LIPSCHITZ_MODULUS; // 1000
+        // When alpha = 1000, lf = 1000:
+        // SlopeUB = 1000, discrete margin = 0
+        let res = verify_discrete_margin_guard(m, 1000, 1000, 5, 2.0);
+        assert!(res.is_err(), "Zero margin must fail margin guard");
+        let err = res.unwrap_err();
+        assert!(err.contains("SlopeUB violation undetectable inside numerical uncertainty"));
+
+        // Artificially large kappa where perturbation exceeds discrete margin
+        // discrete margin = 1000 - 950 = 50
+        // gamma_5 = 5 * 2^-53 / (1 - 5 * 2^-53) ≈ 5.55e-16
+        // If kappa = 1e17, perturbation ≈ 1000 * 5.55e-16 * 1e17 ≈ 55.5 > 50
+        let res_large_kappa = verify_discrete_margin_guard(m, 100, 500, 5, 1e17);
+        assert!(res_large_kappa.is_err(), "Perturbation exceeding margin must be rejected");
+    }
+
+    #[test]
+    fn test_margin_guard_acceptance_and_spectral_state_invariant() {
+        let m = LIPSCHITZ_MODULUS;
+        // alpha = 500, lf = 800:
+        // SlopeUB = 500 + 400 = 900, discrete margin = 100
+        // gamma_5 ≈ 5.55e-16, kappa = 2.0 => perturbation ≈ 1.11e-12 << 100
+        let res = verify_discrete_margin_guard(m, 500, 800, 5, 2.0);
+        assert!(res.is_ok(), "Safe margin must pass guard: {:?}", res.err());
+
+        let state = SpectralState::with_spectral_bound(900, 10, 50, 5, 2.0);
+        assert!(state.is_margin_safe(m));
+        assert!(state.is_invariant_satisfied());
+
+        // State with margin = 0 fails
+        let state_zero_margin = SpectralState::with_spectral_bound(1000, 10, 50, 5, 2.0);
+        assert!(!state_zero_margin.is_margin_safe(m));
+        assert!(!state_zero_margin.is_invariant_satisfied());
+    }
 }
+
