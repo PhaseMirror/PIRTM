@@ -1,8 +1,8 @@
 use adr_verifier::{
-    append_certificate_to_ledger, check_extension, get_ledger_head_announcement, load_ledger,
-    resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain, AdrRegistry,
-    ExtensionCheckRequest, GossipSyncResult, KernelBoundaryConfig, LexicalAnchorTable,
-    PhaseMirrorRegistry, GENESIS_PREV_HASH,
+    append_certificate_to_ledger, check_extension, get_ledger_head_announcement, http_get_head,
+    http_post_sync, load_ledger, resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain,
+    AdrRegistry, ExtensionCheckRequest, GossipHttpServer, GossipSyncResult, KernelBoundaryConfig,
+    LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
 };
 use std::env;
 use std::fs;
@@ -460,9 +460,169 @@ fn handle_cnl_command(args: &[String]) {
                 }
             }
         }
+        "serve-gossip" => {
+            let mut addr = "127.0.0.1:8080".to_string();
+            let mut ledger_path: Option<PathBuf> = None;
+            let mut idx = 3;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--addr" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            addr = val.clone();
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --addr requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let path = resolve_ledger_path(ledger_path.as_deref());
+            let server = match GossipHttpServer::bind(&addr, path.clone()) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("[FATAL] Failed to bind HTTP server to '{}': {}", addr, e);
+                    process::exit(1);
+                }
+            };
+
+            let bound_addr = server.local_addr().unwrap_or_else(|_| addr.parse().unwrap());
+            println!(
+                "[OK] Gossip HTTP server listening on http://{} (ledger: '{}')",
+                bound_addr,
+                path.display()
+            );
+
+            let stop_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            if let Err(e) = server.serve_with_stop_flag(stop_flag) {
+                eprintln!("[FATAL] HTTP server error: {}", e);
+                process::exit(1);
+            }
+            process::exit(0);
+        }
+        "remote-head" => {
+            let remote_url = match args.get(3) {
+                Some(u) => u.clone(),
+                None => {
+                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-head <HTTP_URL_OR_ADDR>");
+                    process::exit(1);
+                }
+            };
+            match http_get_head(&remote_url) {
+                Ok(announcement) => {
+                    println!(
+                        "[OK] Remote Gossip Head: seq={}, hash={}, count={}, ts={}",
+                        announcement.sequence,
+                        announcement.head_hash,
+                        announcement.entry_count,
+                        announcement.timestamp_utc
+                    );
+                    if let Ok(json_str) = serde_json::to_string_pretty(&announcement) {
+                        println!("{}", json_str);
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] Failed to query remote gossip head from '{}': {}", remote_url, e);
+                    process::exit(1);
+                }
+            }
+        }
+        "remote-sync" => {
+            let remote_url = match args.get(3) {
+                Some(u) => u.clone(),
+                None => {
+                    eprintln!("[FATAL] Usage: adr-verifier cnl remote-sync <HTTP_URL_OR_ADDR> [--ledger <LOCAL_LEDGER>]");
+                    process::exit(1);
+                }
+            };
+
+            let mut local_ledger_path: Option<PathBuf> = None;
+            let mut idx = 4;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            local_ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let path = resolve_ledger_path(local_ledger_path.as_deref());
+            let local_entries = match load_ledger(&path) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    eprintln!("[FATAL] Failed to load local ledger '{}': {}", path.display(), e);
+                    process::exit(1);
+                }
+            };
+
+            match http_post_sync(&remote_url, &local_entries) {
+                Ok(result) => {
+                    match result {
+                        GossipSyncResult::InSync { sequence, head_hash } => {
+                            println!(
+                                "[OK] Remote sync: remote and local are IN SYNC (seq={}, head={})",
+                                sequence, head_hash
+                            );
+                        }
+                        GossipSyncResult::PeerBehind {
+                            local_sequence,
+                            peer_sequence,
+                            head_hash: _,
+                        } => {
+                            println!(
+                                "[OK] Remote sync: remote is AHEAD, client was behind (remote_seq={}, client_seq={}). No update applied.",
+                                local_sequence, peer_sequence
+                            );
+                        }
+                        GossipSyncResult::Advanced {
+                            prior_sequence,
+                            new_sequence,
+                            prior_head_hash: _,
+                            new_head_hash,
+                            entries_appended,
+                        } => {
+                            println!(
+                                "[OK] Remote sync: remote ledger ADVANCED from seq {} to {} (+{} entries, new_head={})",
+                                prior_sequence, new_sequence, entries_appended, new_head_hash
+                            );
+                        }
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] Remote synchronization failed: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head, gossip-head, sync-ledger",
+                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head, gossip-head, sync-ledger, serve-gossip, remote-head, remote-sync",
                 subcmd
             );
             process::exit(1);

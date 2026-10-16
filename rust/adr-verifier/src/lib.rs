@@ -14,6 +14,9 @@ pub use extension_checker::*;
 pub mod extension_ledger;
 pub use extension_ledger::*;
 
+pub mod gossip_server;
+pub use gossip_server::*;
+
 // ---------------------------------------------------------------------------
 // ADR structural invariants (numeric ADR registry — supersession, cycles)
 // ---------------------------------------------------------------------------
