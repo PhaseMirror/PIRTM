@@ -308,6 +308,15 @@ pub fn verify_continuous_bilinear_contraction(
 /// IEEE-754 unit roundoff for binary64 (f64): u = 2^-53
 pub const UNIT_ROUNDOFF_F64: f64 = 1.1102230246251565e-16;
 
+/// Baseline minimum eigenvalue gap floor: epsilon_0 = u / M = 2^-53 / 1000
+pub const BASELINE_EPSILON_GAP: f64 = UNIT_ROUNDOFF_F64 / LIPSCHITZ_MODULUS as f64;
+
+/// Computes the scaled rejection threshold:
+/// lambda_min(G) < (2^-53 / 1000) * (N * 2^-53 / (1 - N * 2^-53))
+pub fn compute_scaled_rejection_threshold(n: usize) -> f64 {
+    BASELINE_EPSILON_GAP * compute_gamma_n(n)
+}
+
 /// Default minimum eigenvalue threshold to prevent condition number divergence
 pub const MIN_EIGENVALUE_EPSILON: f64 = 1e-8;
 
@@ -380,23 +389,27 @@ fn vec_norm(v: &[f64]) -> f64 {
 
 /// Computes the spectral gap (lambda_min, lambda_max, condition number kappa) of a symmetric Gram matrix
 /// using power iteration and shifted power iteration, verifying the residual ||G v - λ v|| <= 1e-6.
-/// Enforces minimum eigenvalue gap lambda_min >= epsilon (rejecting condition number divergence).
+/// Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
+/// and requires the power-iteration residual to be strictly smaller than the gap.
 pub fn compute_gram_spectral_gap(
     gram: &[Vec<f64>],
+    support_size_n: Option<usize>,
     epsilon_min: Option<f64>,
 ) -> Result<(f64, f64, f64), String> {
     let m = gram.len();
     if m == 0 {
         return Err("Gram matrix is empty".into());
     }
-    let eps = epsilon_min.unwrap_or(MIN_EIGENVALUE_EPSILON);
+    let n = support_size_n.unwrap_or(m);
+    let scaled_threshold = compute_scaled_rejection_threshold(n);
+    let eps = epsilon_min.unwrap_or(scaled_threshold);
 
     if m == 1 {
         let val = gram[0][0];
         if val < eps {
             return Err(format!(
-                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
-                val, eps
+                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
+                val, eps, n
             ));
         }
         return Ok((val, val, 1.0));
@@ -414,8 +427,8 @@ pub fn compute_gram_spectral_gap(
 
         if lambda_min < eps {
             return Err(format!(
-                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
-                lambda_min, eps
+                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
+                lambda_min, eps, n
             ));
         }
         let kappa = lambda_max / lambda_min;
@@ -497,10 +510,18 @@ pub fn compute_gram_spectral_gap(
         ));
     }
 
+    // Power-iteration residual must be strictly smaller than the gap lambda_min
+    if res_min >= lambda_min {
+        return Err(format!(
+            "Power iteration residual {:.4e} >= lambda_min {:.4e}: uncertainty exceeds spectral distance to zero",
+            res_min, lambda_min
+        ));
+    }
+
     if lambda_min < eps {
         return Err(format!(
-            "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
-            lambda_min, eps
+            "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
+            lambda_min, eps, n
         ));
     }
 
@@ -758,7 +779,7 @@ mod tests {
         let v2 = vec![0.0, 1.0, 0.0];
         let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
 
-        let (lambda_min, lambda_max, kappa) = compute_gram_spectral_gap(&gram, None).unwrap();
+        let (lambda_min, lambda_max, kappa) = compute_gram_spectral_gap(&gram, Some(3), None).unwrap();
         assert!(lambda_min > 0.0);
         assert!(lambda_max >= lambda_min);
         assert!(kappa >= 1.0);
@@ -776,7 +797,7 @@ mod tests {
         let v2 = vec![2.0, 4.0, 6.0]; // Exactly 2 * v1
         let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
 
-        let res = compute_gram_spectral_gap(&gram, Some(1e-6));
+        let res = compute_gram_spectral_gap(&gram, Some(3), None);
         assert!(res.is_err(), "Linearly dependent vectors must be rejected");
         let err = res.unwrap_err();
         assert!(
@@ -784,6 +805,16 @@ mod tests {
             "Expected eigenvalue collapse error, got: {}",
             err
         );
+    }
+
+    #[test]
+    fn test_scaled_rejection_threshold_formula() {
+        let n = 5;
+        let threshold = compute_scaled_rejection_threshold(n);
+        let u = 2.0f64.powi(-53);
+        let expected = (u / 1000.0) * (n as f64 * u / (1.0 - n as f64 * u));
+        assert!((threshold - expected).abs() < 1e-45);
+        assert!(threshold > 0.0);
     }
 
     #[test]
