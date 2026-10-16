@@ -347,10 +347,12 @@ pub const UNIT_ROUNDOFF_F64: f64 = 1.1102230246251565e-16;
 /// Baseline minimum eigenvalue gap floor: epsilon_0 = u / M = 2^-53 / 1000
 pub const BASELINE_EPSILON_GAP: f64 = UNIT_ROUNDOFF_F64 / LIPSCHITZ_MODULUS as f64;
 
-/// Computes the scaled rejection threshold:
-/// lambda_min(G) < (2^-53 / 1000) * (N * 2^-53 / (1 - N * 2^-53))
-pub fn compute_scaled_rejection_threshold(n: usize) -> f64 {
-    BASELINE_EPSILON_GAP * compute_gamma_n(n)
+/// Computes the condition-number-scaled rejection threshold:
+/// lambda_min(G) < (2^-53 / 1000) * (N * 2^-53 / (1 - N * 2^-53)) * kappa
+/// Incorporates stored kappa so ill-conditioned matrices receive proportionally heightened gap floors.
+pub fn compute_scaled_rejection_threshold(n: usize, stored_kappa: Option<f64>) -> f64 {
+    let k = stored_kappa.unwrap_or(1.0).max(1.0);
+    BASELINE_EPSILON_GAP * compute_gamma_n(n) * k
 }
 
 /// Default minimum eigenvalue threshold to prevent condition number divergence
@@ -486,11 +488,12 @@ impl PowerIterationCertificate {
 
 /// Computes the spectral gap (lambda_min, lambda_max, condition number kappa, PowerIterationCertificate)
 /// of a symmetric Gram matrix using power iteration and shifted power iteration, verifying the residual
-/// ||G v - λ v|| <= 1e-6. Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
+/// ||G v - λ v|| <= 1e-6. Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N, kappa) = (2^-53 / 1000) * gamma_N * kappa
 /// and requires the power-iteration residual to be strictly smaller than the gap.
 pub fn compute_gram_spectral_gap_certified(
     gram: &[Vec<f64>],
     support_size_n: Option<usize>,
+    stored_kappa: Option<f64>,
     epsilon_min: Option<f64>,
 ) -> Result<(f64, f64, f64, PowerIterationCertificate), String> {
     let m = gram.len();
@@ -498,7 +501,7 @@ pub fn compute_gram_spectral_gap_certified(
         return Err("Gram matrix is empty".into());
     }
     let n = support_size_n.unwrap_or(m);
-    let scaled_threshold = compute_scaled_rejection_threshold(n);
+    let scaled_threshold = compute_scaled_rejection_threshold(n, stored_kappa);
     let eps = epsilon_min.unwrap_or(scaled_threshold);
 
     if m == 1 {
@@ -602,15 +605,16 @@ pub fn compute_gram_spectral_gap_certified(
 
 /// Computes the spectral gap (lambda_min, lambda_max, condition number kappa) of a symmetric Gram matrix
 /// using power iteration and shifted power iteration, verifying the residual ||G v - λ v|| <= 1e-6.
-/// Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
+/// Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N, kappa) = (2^-53 / 1000) * gamma_N * kappa
 /// and requires the power-iteration residual to be strictly smaller than the gap.
 pub fn compute_gram_spectral_gap(
     gram: &[Vec<f64>],
     support_size_n: Option<usize>,
+    stored_kappa: Option<f64>,
     epsilon_min: Option<f64>,
 ) -> Result<(f64, f64, f64), String> {
     let (lambda_min, lambda_max, kappa, _cert) =
-        compute_gram_spectral_gap_certified(gram, support_size_n, epsilon_min)?;
+        compute_gram_spectral_gap_certified(gram, support_size_n, stored_kappa, epsilon_min)?;
     Ok((lambda_min, lambda_max, kappa))
 }
 
@@ -864,7 +868,7 @@ mod tests {
         let v2 = vec![0.0, 1.0, 0.0];
         let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
 
-        let (lambda_min, lambda_max, kappa) = compute_gram_spectral_gap(&gram, Some(3), None).unwrap();
+        let (lambda_min, lambda_max, kappa) = compute_gram_spectral_gap(&gram, Some(3), None, None).unwrap();
         assert!(lambda_min > 0.0);
         assert!(lambda_max >= lambda_min);
         assert!(kappa >= 1.0);
@@ -882,7 +886,7 @@ mod tests {
         let v2 = vec![2.0, 4.0, 6.0]; // Exactly 2 * v1
         let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
 
-        let res = compute_gram_spectral_gap(&gram, Some(3), None);
+        let res = compute_gram_spectral_gap(&gram, Some(3), None, None);
         assert!(res.is_err(), "Linearly dependent vectors must be rejected");
         let err = res.unwrap_err();
         assert!(
@@ -895,11 +899,49 @@ mod tests {
     #[test]
     fn test_scaled_rejection_threshold_formula() {
         let n = 5;
-        let threshold = compute_scaled_rejection_threshold(n);
+        let threshold = compute_scaled_rejection_threshold(n, None);
         let u = 2.0f64.powi(-53);
         let expected = (u / 1000.0) * (n as f64 * u / (1.0 - n as f64 * u));
         assert!((threshold - expected).abs() < 1e-45);
         assert!(threshold > 0.0);
+    }
+
+    #[test]
+    fn test_scaled_rejection_threshold_with_kappa() {
+        let n = 5;
+        let u = 2.0f64.powi(-53);
+        let gamma_5 = 5.0 * u / (1.0 - 5.0 * u);
+        let base = u / 1000.0;
+
+        // Baseline (kappa = 1.0)
+        let thresh_1 = compute_scaled_rejection_threshold(n, None);
+        assert!((thresh_1 - base * gamma_5).abs() < 1e-45);
+
+        // Scaled by kappa = 100.0: threshold = (2^-53 / 1000) * gamma_N * kappa
+        let kappa = 100.0;
+        let thresh_k = compute_scaled_rejection_threshold(n, Some(kappa));
+        assert!((thresh_k - base * gamma_5 * kappa).abs() < 1e-45);
+        assert!(thresh_k > thresh_1);
+        assert!((thresh_k - thresh_1 * 100.0).abs() < 1e-45);
+    }
+
+    #[test]
+    fn test_ill_conditioned_support_rejected_by_kappa_scaled_threshold() {
+        let primes = [2u64, 3];
+        let v1 = vec![1.0, 0.0];
+        let v2 = vec![0.5, 0.5];
+        let gram = compute_gram_matrix(&[v1, v2], &primes).unwrap();
+
+        // Baseline passes with normal kappa = 1.0
+        let res_base = compute_gram_spectral_gap_certified(&gram, Some(2), Some(1.0), None);
+        assert!(res_base.is_ok(), "Baseline should pass: {:?}", res_base.err());
+
+        // Under an extreme stored kappa = 1e36, the rejection threshold (2^-53/1000)*gamma_N*kappa
+        // scales up to exceed the computed eigenvalue gap, rejecting the transition
+        let res_ill = compute_gram_spectral_gap_certified(&gram, Some(2), Some(1e36), None);
+        assert!(res_ill.is_err(), "Extreme stored kappa must abort on compressed gap");
+        let err = res_ill.unwrap_err();
+        assert!(err.contains("spectral gap collapse") || err.contains("uncertainty"));
     }
 
     #[test]
@@ -970,7 +1012,7 @@ mod tests {
         let v3 = vec![0.0, 0.0, 1.0];
         let gram = compute_gram_matrix(&[v1, v2, v3], &primes).unwrap();
 
-        let res = compute_gram_spectral_gap_certified(&gram, Some(3), None);
+        let res = compute_gram_spectral_gap_certified(&gram, Some(3), None, None);
         assert!(res.is_ok(), "Orthogonal basis must certify: {:?}", res.err());
         let (lambda_min, lambda_max, kappa, cert) = res.unwrap();
         assert!(lambda_min > 0.0);
