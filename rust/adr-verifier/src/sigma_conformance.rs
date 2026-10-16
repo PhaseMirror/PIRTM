@@ -61,10 +61,18 @@ pub struct SpectralState {
     pub support_size_n: u64,
     #[serde(default = "default_kappa")]
     pub kappa: f64,
+    #[serde(default)]
+    pub residual_min: f64,
+    #[serde(default = "default_true")]
+    pub residual_cert_valid: bool,
 }
 
 fn default_kappa() -> f64 {
     1.0
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for SpectralState {
@@ -75,6 +83,8 @@ impl Default for SpectralState {
             tau_r: 100,
             support_size_n: 0,
             kappa: 1.0,
+            residual_min: 0.0,
+            residual_cert_valid: true,
         }
     }
 }
@@ -87,6 +97,8 @@ impl SpectralState {
             tau_r,
             support_size_n: 0,
             kappa: 1.0,
+            residual_min: 0.0,
+            residual_cert_valid: true,
         }
     }
 
@@ -103,6 +115,28 @@ impl SpectralState {
             tau_r,
             support_size_n,
             kappa,
+            residual_min: 0.0,
+            residual_cert_valid: true,
+        }
+    }
+
+    pub fn with_certified_residual(
+        effective_lipschitz: u64,
+        drift: u64,
+        tau_r: u64,
+        support_size_n: u64,
+        kappa: f64,
+        residual_min: f64,
+        residual_cert_valid: bool,
+    ) -> Self {
+        Self {
+            effective_lipschitz,
+            drift,
+            tau_r,
+            support_size_n,
+            kappa,
+            residual_min,
+            residual_cert_valid,
         }
     }
 
@@ -117,12 +151,14 @@ impl SpectralState {
     }
 
     /// Invariant check: L_eff < LIPSCHITZ_MODULUS (1000) and drift <= tau_r,
-    /// and discrete margin strictly exceeds floating-point perturbation bound.
+    /// discrete margin strictly exceeds floating-point perturbation bound,
+    /// and power-iteration residual certificate is valid.
     /// Matches `PhaseMirror.SigmaKernelInvariant` in `SigmaKernel.lean`.
     pub fn is_invariant_satisfied(&self) -> bool {
         self.effective_lipschitz < LIPSCHITZ_MODULUS
             && self.drift <= self.tau_r
             && self.is_margin_safe(LIPSCHITZ_MODULUS)
+            && self.residual_cert_valid
     }
 }
 
@@ -387,15 +423,76 @@ fn vec_norm(v: &[f64]) -> f64 {
     v.iter().map(|&x| x * x).sum::<f64>().sqrt()
 }
 
-/// Computes the spectral gap (lambda_min, lambda_max, condition number kappa) of a symmetric Gram matrix
-/// using power iteration and shifted power iteration, verifying the residual ||G v - λ v|| <= 1e-6.
-/// Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
+/// A-posteriori certificate produced by power iteration / shifted power iteration.
+/// Formally matched to `PhaseMirror.PowerIterationCertificate` in `SigmaKernel.lean`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PowerIterationCertificate {
+    pub lambda_est: f64,
+    pub residual: f64,
+    pub residual_tol: f64,
+    pub epsilon_min: f64,
+    pub certified_lambda_lb: f64,
+}
+
+impl PowerIterationCertificate {
+    pub fn new(lambda_est: f64, residual: f64, residual_tol: f64, epsilon_min: f64) -> Self {
+        let certified_lambda_lb = (lambda_est - residual).max(0.0);
+        Self {
+            lambda_est,
+            residual,
+            residual_tol,
+            epsilon_min,
+            certified_lambda_lb,
+        }
+    }
+
+    /// Verifies the certificate against the Lean decision predicate:
+    /// 1. residual <= residual_tol (iteration converged within tolerance)
+    /// 2. residual < lambda_est (uncertainty strictly smaller than eigenvalue, keeping spectrum away from zero)
+    /// 3. certified_lambda_lb >= epsilon_min (certified true eigenvalue satisfies spectral gap)
+    /// 4. epsilon_min > 0.0 (strictly positive gap floor)
+    pub fn verify(&self) -> Result<f64, String> {
+        if self.epsilon_min <= 0.0 {
+            return Err(format!(
+                "Invalid epsilon_min <= 0.0: {:.4e}",
+                self.epsilon_min
+            ));
+        }
+        if self.residual > self.residual_tol {
+            return Err(format!(
+                "Power iteration residual {:.4e} > tolerance {:.4e}: iteration failed to converge",
+                self.residual, self.residual_tol
+            ));
+        }
+        if self.residual >= self.lambda_est {
+            return Err(format!(
+                "Power iteration residual {:.4e} >= lambda_est {:.4e}: uncertainty exceeds spectral distance to zero",
+                self.residual, self.lambda_est
+            ));
+        }
+        if self.certified_lambda_lb < self.epsilon_min {
+            return Err(format!(
+                "Certified eigenvalue lower bound {:.4e} < epsilon_min {:.4e}: spectral gap collapse",
+                self.certified_lambda_lb, self.epsilon_min
+            ));
+        }
+        Ok(self.certified_lambda_lb)
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.verify().is_ok()
+    }
+}
+
+/// Computes the spectral gap (lambda_min, lambda_max, condition number kappa, PowerIterationCertificate)
+/// of a symmetric Gram matrix using power iteration and shifted power iteration, verifying the residual
+/// ||G v - λ v|| <= 1e-6. Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
 /// and requires the power-iteration residual to be strictly smaller than the gap.
-pub fn compute_gram_spectral_gap(
+pub fn compute_gram_spectral_gap_certified(
     gram: &[Vec<f64>],
     support_size_n: Option<usize>,
     epsilon_min: Option<f64>,
-) -> Result<(f64, f64, f64), String> {
+) -> Result<(f64, f64, f64, PowerIterationCertificate), String> {
     let m = gram.len();
     if m == 0 {
         return Err("Gram matrix is empty".into());
@@ -406,13 +503,9 @@ pub fn compute_gram_spectral_gap(
 
     if m == 1 {
         let val = gram[0][0];
-        if val < eps {
-            return Err(format!(
-                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
-                val, eps, n
-            ));
-        }
-        return Ok((val, val, 1.0));
+        let cert = PowerIterationCertificate::new(val, 0.0, POWER_ITERATION_RESIDUAL_TOL, eps);
+        cert.verify()?;
+        return Ok((val, val, 1.0, cert));
     }
 
     if m == 2 {
@@ -425,14 +518,10 @@ pub fn compute_gram_spectral_gap(
         let lambda_max = (trace + disc) / 2.0;
         let lambda_min = (trace - disc) / 2.0;
 
-        if lambda_min < eps {
-            return Err(format!(
-                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
-                lambda_min, eps, n
-            ));
-        }
-        let kappa = lambda_max / lambda_min;
-        return Ok((lambda_min, lambda_max, kappa));
+        let cert = PowerIterationCertificate::new(lambda_min, 0.0, POWER_ITERATION_RESIDUAL_TOL, eps);
+        cert.verify()?;
+        let kappa = lambda_max / cert.certified_lambda_lb;
+        return Ok((lambda_min, lambda_max, kappa, cert));
     }
 
     // General m >= 3: Power iteration for lambda_max
@@ -503,29 +592,25 @@ pub fn compute_gram_spectral_gap(
         diff_min[i] = gu[i] - lambda_min * u[i];
     }
     let res_min = vec_norm(&diff_min);
-    if res_min > POWER_ITERATION_RESIDUAL_TOL {
-        return Err(format!(
-            "Shifted power iteration failed to converge for lambda_min: residual {:.4e} > tol {:.4e}",
-            res_min, POWER_ITERATION_RESIDUAL_TOL
-        ));
-    }
 
-    // Power-iteration residual must be strictly smaller than the gap lambda_min
-    if res_min >= lambda_min {
-        return Err(format!(
-            "Power iteration residual {:.4e} >= lambda_min {:.4e}: uncertainty exceeds spectral distance to zero",
-            res_min, lambda_min
-        ));
-    }
+    let cert = PowerIterationCertificate::new(lambda_min, res_min, POWER_ITERATION_RESIDUAL_TOL, eps);
+    cert.verify()?;
 
-    if lambda_min < eps {
-        return Err(format!(
-            "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < scaled threshold {:.4e} for N={}",
-            lambda_min, eps, n
-        ));
-    }
+    let kappa = lambda_max / cert.certified_lambda_lb;
+    Ok((lambda_min, lambda_max, kappa, cert))
+}
 
-    let kappa = lambda_max / lambda_min;
+/// Computes the spectral gap (lambda_min, lambda_max, condition number kappa) of a symmetric Gram matrix
+/// using power iteration and shifted power iteration, verifying the residual ||G v - λ v|| <= 1e-6.
+/// Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N) = (2^-53 / 1000) * gamma_N
+/// and requires the power-iteration residual to be strictly smaller than the gap.
+pub fn compute_gram_spectral_gap(
+    gram: &[Vec<f64>],
+    support_size_n: Option<usize>,
+    epsilon_min: Option<f64>,
+) -> Result<(f64, f64, f64), String> {
+    let (lambda_min, lambda_max, kappa, _cert) =
+        compute_gram_spectral_gap_certified(gram, support_size_n, epsilon_min)?;
     Ok((lambda_min, lambda_max, kappa))
 }
 
@@ -801,8 +886,8 @@ mod tests {
         assert!(res.is_err(), "Linearly dependent vectors must be rejected");
         let err = res.unwrap_err();
         assert!(
-            err.contains("eigenvalue collapse") || err.contains("diverges"),
-            "Expected eigenvalue collapse error, got: {}",
+            err.contains("eigenvalue collapse") || err.contains("uncertainty") || err.contains("diverges"),
+            "Expected eigenvalue collapse or uncertainty error, got: {}",
             err
         );
     }
@@ -852,6 +937,59 @@ mod tests {
         let state_zero_margin = SpectralState::with_spectral_bound(1000, 10, 50, 5, 2.0);
         assert!(!state_zero_margin.is_margin_safe(m));
         assert!(!state_zero_margin.is_invariant_satisfied());
+    }
+
+    #[test]
+    fn test_power_iteration_certificate_validation_rules() {
+        // 1. Valid certificate passes
+        let cert_valid = PowerIterationCertificate::new(0.5, 1e-7, 1e-6, 1e-8);
+        assert!(cert_valid.is_valid());
+        assert_eq!(cert_valid.verify().unwrap(), 0.5 - 1e-7);
+
+        // 2. Residual exceeding tolerance is rejected (matches power_iteration_residual_tol_exceeded_rejected)
+        let cert_tol_fail = PowerIterationCertificate::new(0.5, 5e-6, 1e-6, 1e-8);
+        assert!(!cert_tol_fail.is_valid());
+        assert!(cert_tol_fail.verify().unwrap_err().contains("iteration failed to converge"));
+
+        // 3. Residual exceeding estimated eigenvalue is rejected (matches power_iteration_uncertainty_exceeds_eigenvalue_rejected)
+        let cert_unc_fail = PowerIterationCertificate::new(1e-7, 2e-7, 1e-6, 1e-8);
+        assert!(!cert_unc_fail.is_valid());
+        assert!(cert_unc_fail.verify().unwrap_err().contains("uncertainty exceeds spectral distance"));
+
+        // 4. Certified lower bound collapsing below epsilon_min is rejected (matches power_iteration_gap_collapse_rejected)
+        let cert_gap_fail = PowerIterationCertificate::new(1e-8, 5e-9, 1e-6, 1e-8);
+        assert!(!cert_gap_fail.is_valid());
+        assert!(cert_gap_fail.verify().unwrap_err().contains("spectral gap collapse"));
+    }
+
+    #[test]
+    fn test_gram_spectral_gap_certified_emits_valid_certificate() {
+        let primes = [2u64, 3, 5];
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![0.0, 1.0, 0.0];
+        let v3 = vec![0.0, 0.0, 1.0];
+        let gram = compute_gram_matrix(&[v1, v2, v3], &primes).unwrap();
+
+        let res = compute_gram_spectral_gap_certified(&gram, Some(3), None);
+        assert!(res.is_ok(), "Orthogonal basis must certify: {:?}", res.err());
+        let (lambda_min, lambda_max, kappa, cert) = res.unwrap();
+        assert!(lambda_min > 0.0);
+        assert!(lambda_max >= lambda_min);
+        assert!(kappa >= 1.0);
+        assert!(cert.is_valid());
+        assert!(cert.residual <= 1e-6);
+        assert!(cert.certified_lambda_lb >= cert.epsilon_min);
+
+        let state = SpectralState::with_certified_residual(
+            900, 10, 50, 3, kappa, cert.residual, cert.is_valid(),
+        );
+        assert!(state.is_invariant_satisfied());
+
+        // An invalid residual cert marks state invariant as unsatisfied
+        let state_invalid_cert = SpectralState::with_certified_residual(
+            900, 10, 50, 3, kappa, 1e-4, false,
+        );
+        assert!(!state_invalid_cert.is_invariant_satisfied());
     }
 }
 
