@@ -1,8 +1,8 @@
 use adr_verifier::{
     append_certificate_to_ledger, check_extension, get_ledger_head_announcement, http_get_head,
     http_post_sync, load_ledger, resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain,
-    AdrRegistry, ExtensionCheckRequest, GossipHttpServer, GossipSyncResult, KernelBoundaryConfig,
-    LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
+    AdrRegistry, ExtensionCheckRequest, GossipHttpServer, GossipSyncDaemon, GossipSyncResult,
+    KernelBoundaryConfig, LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
 };
 use std::env;
 use std::fs;
@@ -620,9 +620,98 @@ fn handle_cnl_command(args: &[String]) {
                 }
             }
         }
+        "sync-daemon" => {
+            let mut peers: Vec<String> = Vec::new();
+            let mut interval_ms: u64 = 5000;
+            let mut ledger_path: Option<PathBuf> = None;
+            let mut run_once = false;
+
+            let mut idx = 3;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--peers" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            peers = val
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --peers requires a comma-separated list of peer URLs");
+                            process::exit(1);
+                        }
+                    }
+                    "--interval" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            interval_ms = val.parse().unwrap_or(5000);
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --interval requires milliseconds");
+                            process::exit(1);
+                        }
+                    }
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    "--once" => {
+                        run_once = true;
+                        idx += 1;
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            if peers.is_empty() {
+                eprintln!(
+                    "[FATAL] Usage: adr-verifier cnl sync-daemon --peers <PEER1,PEER2> [--interval <MS>] [--ledger <PATH>] [--once]"
+                );
+                process::exit(1);
+            }
+
+            let path = resolve_ledger_path(ledger_path.as_deref());
+            let daemon = GossipSyncDaemon::new(path.clone(), peers.clone(), interval_ms);
+
+            if run_once {
+                let reports = daemon.run_once();
+                println!(
+                    "[OK] Sync daemon pass completed ({} peers queried):",
+                    peers.len()
+                );
+                for r in &reports {
+                    println!(
+                        "  peer: {:<20} status: {:<25} msg: {}",
+                        r.peer, r.status, r.message
+                    );
+                }
+                if let Ok(json_str) = serde_json::to_string_pretty(&reports) {
+                    println!("{}", json_str);
+                }
+                process::exit(0);
+            } else {
+                println!(
+                    "[OK] Starting background gossip sync daemon (interval: {}ms, ledger: '{}', peers: {:?})",
+                    interval_ms,
+                    path.display(),
+                    peers
+                );
+                let stop_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                daemon.run_loop_with_stop_flag(stop_flag);
+                process::exit(0);
+            }
+        }
         _ => {
             eprintln!(
-                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head, gossip-head, sync-ledger, serve-gossip, remote-head, remote-sync",
+                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head, gossip-head, sync-ledger, serve-gossip, remote-head, remote-sync, sync-daemon",
                 subcmd
             );
             process::exit(1);

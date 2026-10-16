@@ -389,6 +389,209 @@ pub fn http_post_sync(
     }
 }
 
+/// Helper client function to fetch the complete ledger from `/ledger` over HTTP.
+pub fn http_get_ledger(addr: &str) -> Result<Vec<ExtensionLedgerEntry>, String> {
+    let clean_addr = addr
+        .trim_start_matches("http://")
+        .trim_start_matches("https://");
+    let mut stream =
+        TcpStream::connect(clean_addr).map_err(|e| format!("Connect error to '{}': {}", clean_addr, e))?;
+    let req = format!(
+        "GET /ledger HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+        clean_addr
+    );
+    stream
+        .write_all(req.as_bytes())
+        .map_err(|e| format!("Write error: {}", e))?;
+
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .map_err(|e| format!("Read error: {}", e))?;
+
+    let (status_code, body) = parse_http_response(&response)?;
+    if status_code != 200 {
+        return Err(format!("HTTP {}: {}", status_code, body));
+    }
+    serde_json::from_str(&body).map_err(|e| format!("JSON parse error: {}", e))
+}
+
+/// Report summarizing synchronization against a specific remote peer.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PeerSyncReport {
+    pub peer: String,
+    pub status: String,
+    pub peer_sequence: Option<u64>,
+    pub local_sequence: u64,
+    pub message: String,
+}
+
+/// Queries a remote peer's `/head` and syncs forward extensions if peer sequence > local sequence.
+/// Rejects divergent forks fail-closed without modifying local ledger.
+pub fn poll_and_sync_peer(ledger_path: &Path, peer_addr: &str) -> PeerSyncReport {
+    let local_entries = match load_ledger(ledger_path) {
+        Ok(e) => e,
+        Err(e) => {
+            return PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "local_error".to_string(),
+                peer_sequence: None,
+                local_sequence: 0,
+                message: format!("Failed to load local ledger: {}", e),
+            };
+        }
+    };
+    let local_ann = get_ledger_head_announcement(&local_entries);
+
+    let peer_ann = match http_get_head(peer_addr) {
+        Ok(ann) => ann,
+        Err(e) => {
+            return PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "unreachable".to_string(),
+                peer_sequence: None,
+                local_sequence: local_ann.sequence,
+                message: format!("Peer head unreachable: {}", e),
+            };
+        }
+    };
+
+    if peer_ann.sequence == local_ann.sequence {
+        if peer_ann.head_hash == local_ann.head_hash {
+            return PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "in_sync".to_string(),
+                peer_sequence: Some(peer_ann.sequence),
+                local_sequence: local_ann.sequence,
+                message: format!("Chains in sync at sequence {}", local_ann.sequence),
+            };
+        } else {
+            return PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "competing_fork_rejected".to_string(),
+                peer_sequence: Some(peer_ann.sequence),
+                local_sequence: local_ann.sequence,
+                message: format!(
+                    "Competing fork at same sequence {}: local '{}' != peer '{}'",
+                    local_ann.sequence, local_ann.head_hash, peer_ann.head_hash
+                ),
+            };
+        }
+    }
+
+    if peer_ann.sequence > local_ann.sequence {
+        // Fetch peer ledger and sync forward
+        let peer_entries = match http_get_ledger(peer_addr) {
+            Ok(entries) => entries,
+            Err(e) => {
+                return PeerSyncReport {
+                    peer: peer_addr.to_string(),
+                    status: "fetch_error".to_string(),
+                    peer_sequence: Some(peer_ann.sequence),
+                    local_sequence: local_ann.sequence,
+                    message: format!("Failed to fetch peer ledger: {}", e),
+                };
+            }
+        };
+
+        match sync_ledger_with_peer(ledger_path, &peer_entries, false) {
+            Ok(GossipSyncResult::Advanced {
+                prior_sequence,
+                new_sequence,
+                entries_appended,
+                new_head_hash,
+                ..
+            }) => PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "advanced".to_string(),
+                peer_sequence: Some(peer_ann.sequence),
+                local_sequence: new_sequence,
+                message: format!(
+                    "Local ledger advanced from seq {} to {} (+{} entries, head={})",
+                    prior_sequence, new_sequence, entries_appended, new_head_hash
+                ),
+            },
+            Ok(other) => PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "synced".to_string(),
+                peer_sequence: Some(peer_ann.sequence),
+                local_sequence: local_ann.sequence,
+                message: format!("{:?}", other),
+            },
+            Err(e) => PeerSyncReport {
+                peer: peer_addr.to_string(),
+                status: "fork_rejected".to_string(),
+                peer_sequence: Some(peer_ann.sequence),
+                local_sequence: local_ann.sequence,
+                message: format!("Sync rejected: {}", e),
+            },
+        }
+    } else {
+        // Peer is behind local
+        PeerSyncReport {
+            peer: peer_addr.to_string(),
+            status: "peer_behind".to_string(),
+            peer_sequence: Some(peer_ann.sequence),
+            local_sequence: local_ann.sequence,
+            message: format!(
+                "Local is ahead (local_seq={}, peer_seq={})",
+                local_ann.sequence, peer_ann.sequence
+            ),
+        }
+    }
+}
+
+/// Polls and syncs against a list of configured peers.
+pub fn poll_and_sync_all_peers(ledger_path: &Path, peers: &[String]) -> Vec<PeerSyncReport> {
+    peers
+        .iter()
+        .map(|peer| poll_and_sync_peer(ledger_path, peer))
+        .collect()
+}
+
+/// Background gossip synchronization daemon that periodically queries peers and syncs forward extensions.
+pub struct GossipSyncDaemon {
+    pub ledger_path: PathBuf,
+    pub peers: Vec<String>,
+    pub poll_interval_ms: u64,
+}
+
+impl GossipSyncDaemon {
+    pub fn new(ledger_path: PathBuf, peers: Vec<String>, poll_interval_ms: u64) -> Self {
+        Self {
+            ledger_path,
+            peers,
+            poll_interval_ms,
+        }
+    }
+
+    /// Performs a single poll-and-sync pass across all configured peers.
+    pub fn run_once(&self) -> Vec<PeerSyncReport> {
+        poll_and_sync_all_peers(&self.ledger_path, &self.peers)
+    }
+
+    /// Runs periodic synchronization loop until `stop_flag` is set.
+    pub fn run_loop_with_stop_flag(&self, stop_flag: Arc<AtomicBool>) {
+        while !stop_flag.load(Ordering::Relaxed) {
+            let _ = self.run_once();
+            let steps = (self.poll_interval_ms / 50).max(1);
+            for _ in 0..steps {
+                if stop_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+    }
+
+    /// Spawns the daemon in a background OS thread.
+    pub fn spawn_in_background(self, stop_flag: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            self.run_loop_with_stop_flag(stop_flag);
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -537,5 +740,132 @@ mod tests {
 
         stop_flag.store(true, Ordering::Relaxed);
         let _ = handle.join();
+    }
+
+    #[test]
+    fn test_daemon_poll_and_sync_advances_on_higher_peer() {
+        let tmp_a = TempLedgerFile::new();
+        let tmp_b = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2 = make_test_cert("scale", 3, "verb");
+
+        // Node A has only cert1 (seq 1)
+        append_certificate_to_ledger(&tmp_a.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        // Node B has cert1 + cert2 (seq 2)
+        append_certificate_to_ledger(&tmp_b.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_b.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        // Server for Node B
+        let server_b = GossipHttpServer::bind("127.0.0.1:0", tmp_b.path.clone()).unwrap();
+        let addr_b = server_b.local_addr().unwrap();
+        let stop_server = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop_server.clone();
+        let handle_b = std::thread::spawn(move || {
+            server_b.serve_with_stop_flag(stop_clone)
+        });
+
+        let peer_b_url = format!("127.0.0.1:{}", addr_b.port());
+
+        // Node A polls Node B
+        let report = poll_and_sync_peer(&tmp_a.path, &peer_b_url);
+        assert_eq!(report.status, "advanced");
+        assert_eq!(report.local_sequence, 2);
+
+        // Verify Node A's ledger on disk now contains both entries
+        let entries_a = load_ledger(&tmp_a.path).unwrap();
+        assert_eq!(entries_a.len(), 2);
+        assert_eq!(entries_a[1].certificate.token, "scale");
+
+        stop_server.store(true, Ordering::Relaxed);
+        let _ = handle_b.join();
+    }
+
+    #[test]
+    fn test_daemon_poll_and_sync_rejects_divergent_peer() {
+        let tmp_a = TempLedgerFile::new();
+        let tmp_c = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2_a = make_test_cert("scale", 3, "verb");
+        let cert2_c = make_test_cert("menthol", 53, "sector");
+
+        // Node A has cert1 + cert2_a
+        append_certificate_to_ledger(&tmp_a.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_a.path, &cert2_a, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        // Node C has cert1 + divergent cert2_c
+        append_certificate_to_ledger(&tmp_c.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_c.path, &cert2_c, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let server_c = GossipHttpServer::bind("127.0.0.1:0", tmp_c.path.clone()).unwrap();
+        let addr_c = server_c.local_addr().unwrap();
+        let stop_server = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop_server.clone();
+        let handle_c = std::thread::spawn(move || {
+            server_c.serve_with_stop_flag(stop_clone)
+        });
+
+        let peer_c_url = format!("127.0.0.1:{}", addr_c.port());
+
+        // Node A polls Node C (competing fork at same height)
+        let report = poll_and_sync_peer(&tmp_a.path, &peer_c_url);
+        assert_eq!(report.status, "competing_fork_rejected");
+
+        // Verify Node A's ledger was NOT modified
+        let entries_a = load_ledger(&tmp_a.path).unwrap();
+        assert_eq!(entries_a.len(), 2);
+        assert_eq!(entries_a[1].certificate.token, "scale");
+
+        stop_server.store(true, Ordering::Relaxed);
+        let _ = handle_c.join();
+    }
+
+    #[test]
+    fn test_daemon_background_thread_spawns_and_syncs() {
+        let tmp_a = TempLedgerFile::new();
+        let tmp_b = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2 = make_test_cert("scale", 3, "verb");
+
+        // Node A has cert1
+        append_certificate_to_ledger(&tmp_a.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        // Node B has cert1 + cert2
+        append_certificate_to_ledger(&tmp_b.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_b.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let server_b = GossipHttpServer::bind("127.0.0.1:0", tmp_b.path.clone()).unwrap();
+        let addr_b = server_b.local_addr().unwrap();
+        let stop_server = Arc::new(AtomicBool::new(false));
+        let stop_clone = stop_server.clone();
+        let handle_b = std::thread::spawn(move || {
+            server_b.serve_with_stop_flag(stop_clone)
+        });
+
+        let peer_b_url = format!("127.0.0.1:{}", addr_b.port());
+
+        // Spawn background sync daemon for Node A with 30ms poll interval
+        let daemon = GossipSyncDaemon::new(tmp_a.path.clone(), vec![peer_b_url], 30);
+        let stop_daemon = Arc::new(AtomicBool::new(false));
+        let daemon_handle = daemon.spawn_in_background(stop_daemon.clone());
+
+        // Wait up to 500ms for background thread to sync
+        let mut synced = false;
+        for _ in 0..20 {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            if let Ok(entries) = load_ledger(&tmp_a.path) {
+                if entries.len() == 2 {
+                    synced = true;
+                    break;
+                }
+            }
+        }
+        assert!(synced, "Background daemon should have synced entries to Node A");
+
+        stop_daemon.store(true, Ordering::Relaxed);
+        let _ = daemon_handle.join();
+
+        stop_server.store(true, Ordering::Relaxed);
+        let _ = handle_b.join();
     }
 }
