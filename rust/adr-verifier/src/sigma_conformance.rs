@@ -52,20 +52,80 @@ pub fn compute_gap_lb(m: u64, alpha: u64, lf: u64) -> u64 {
 
 /// Spectral state representation for MOC and ADR-062 compliance.
 /// Matches `PhaseMirror.SpectralState` in `SigmaKernel.lean`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SpectralState {
     pub effective_lipschitz: u64,
     pub drift: u64,
     pub tau_r: u64,
+    #[serde(default)]
+    pub support_size_n: u64,
+    #[serde(default = "default_kappa")]
+    pub kappa: f64,
+}
+
+fn default_kappa() -> f64 {
+    1.0
+}
+
+impl Default for SpectralState {
+    fn default() -> Self {
+        Self {
+            effective_lipschitz: 0,
+            drift: 0,
+            tau_r: 100,
+            support_size_n: 0,
+            kappa: 1.0,
+        }
+    }
 }
 
 impl SpectralState {
-    /// Invariant check: L_eff < LIPSCHITZ_MODULUS (1000) and drift <= tau_r.
+    pub fn new(effective_lipschitz: u64, drift: u64, tau_r: u64) -> Self {
+        Self {
+            effective_lipschitz,
+            drift,
+            tau_r,
+            support_size_n: 0,
+            kappa: 1.0,
+        }
+    }
+
+    pub fn with_spectral_bound(
+        effective_lipschitz: u64,
+        drift: u64,
+        tau_r: u64,
+        support_size_n: u64,
+        kappa: f64,
+    ) -> Self {
+        Self {
+            effective_lipschitz,
+            drift,
+            tau_r,
+            support_size_n,
+            kappa,
+        }
+    }
+
+    pub fn is_margin_safe(&self, m: u64) -> bool {
+        if self.support_size_n == 0 {
+            return true;
+        }
+        let margin = m.saturating_sub(self.effective_lipschitz) as f64;
+        let gamma_n = compute_gamma_n(self.support_size_n as usize);
+        let perturbation = (m as f64) * gamma_n * self.kappa;
+        margin > perturbation
+    }
+
+    /// Invariant check: L_eff < LIPSCHITZ_MODULUS (1000) and drift <= tau_r,
+    /// and discrete margin strictly exceeds floating-point perturbation bound.
     /// Matches `PhaseMirror.SigmaKernelInvariant` in `SigmaKernel.lean`.
     pub fn is_invariant_satisfied(&self) -> bool {
-        self.effective_lipschitz < LIPSCHITZ_MODULUS && self.drift <= self.tau_r
+        self.effective_lipschitz < LIPSCHITZ_MODULUS
+            && self.drift <= self.tau_r
+            && self.is_margin_safe(LIPSCHITZ_MODULUS)
     }
 }
+
 
 /// Verifies that a pair (alpha, lf) satisfies the ACE condition and strictly contracts
 /// on all given positive sigma-metric distances `d`.
@@ -245,6 +305,239 @@ pub fn verify_continuous_bilinear_contraction(
     Ok(empirical_ratio)
 }
 
+/// IEEE-754 unit roundoff for binary64 (f64): u = 2^-53
+pub const UNIT_ROUNDOFF_F64: f64 = 1.1102230246251565e-16;
+
+/// Default minimum eigenvalue threshold to prevent condition number divergence
+pub const MIN_EIGENVALUE_EPSILON: f64 = 1e-8;
+
+/// Residual tolerance for power iteration convergence check
+pub const POWER_ITERATION_RESIDUAL_TOL: f64 = 1e-6;
+
+/// Maximum iterations for power iteration
+pub const POWER_ITERATION_MAX_ITERS: usize = 200;
+
+/// Computes γ_N = N * u / (1 - N * u) under IEEE-754 f64 rounding
+pub fn compute_gamma_n(n: usize) -> f64 {
+    let nu = n as f64 * UNIT_ROUNDOFF_F64;
+    if nu >= 1.0 {
+        f64::INFINITY
+    } else {
+        nu / (1.0 - nu)
+    }
+}
+
+/// Computes the Gram matrix G_ij = Σ_p ν_p^(i) * ν_p^(j) * (ln p)^-1
+/// for a collection of basis vectors over prime support.
+pub fn compute_gram_matrix(vectors: &[Vec<f64>], primes: &[u64]) -> Result<Vec<Vec<f64>>, String> {
+    if vectors.is_empty() {
+        return Err("Cannot compute Gram matrix: vector set is empty".into());
+    }
+    let m = vectors.len();
+    let n = primes.len();
+    for (idx, v) in vectors.iter().enumerate() {
+        if v.len() < n {
+            return Err(format!(
+                "Vector {} length {} < prime support size {}",
+                idx, v.len(), n
+            ));
+        }
+    }
+
+    let mut gram = vec![vec![0.0; m]; m];
+    for i in 0..m {
+        for j in i..m {
+            let mut sum = 0.0;
+            for p_idx in 0..n {
+                let log_p = (primes[p_idx] as f64).ln();
+                sum += vectors[i][p_idx] * vectors[j][p_idx] / log_p;
+            }
+            gram[i][j] = sum;
+            gram[j][i] = sum;
+        }
+    }
+    Ok(gram)
+}
+
+/// Helper: Matrix-vector product for square matrix G and vector v
+fn mat_vec_mul(mat: &[Vec<f64>], v: &[f64]) -> Vec<f64> {
+    let m = mat.len();
+    let mut out = vec![0.0; m];
+    for i in 0..m {
+        let mut s = 0.0;
+        for j in 0..m {
+            s += mat[i][j] * v[j];
+        }
+        out[i] = s;
+    }
+    out
+}
+
+/// Helper: Vector 2-norm
+fn vec_norm(v: &[f64]) -> f64 {
+    v.iter().map(|&x| x * x).sum::<f64>().sqrt()
+}
+
+/// Computes the spectral gap (lambda_min, lambda_max, condition number kappa) of a symmetric Gram matrix
+/// using power iteration and shifted power iteration, verifying the residual ||G v - λ v|| <= 1e-6.
+/// Enforces minimum eigenvalue gap lambda_min >= epsilon (rejecting condition number divergence).
+pub fn compute_gram_spectral_gap(
+    gram: &[Vec<f64>],
+    epsilon_min: Option<f64>,
+) -> Result<(f64, f64, f64), String> {
+    let m = gram.len();
+    if m == 0 {
+        return Err("Gram matrix is empty".into());
+    }
+    let eps = epsilon_min.unwrap_or(MIN_EIGENVALUE_EPSILON);
+
+    if m == 1 {
+        let val = gram[0][0];
+        if val < eps {
+            return Err(format!(
+                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
+                val, eps
+            ));
+        }
+        return Ok((val, val, 1.0));
+    }
+
+    if m == 2 {
+        let a = gram[0][0];
+        let b = gram[0][1];
+        let d = gram[1][1];
+        let trace = a + d;
+        let det = a * d - b * b;
+        let disc = (trace * trace - 4.0 * det).max(0.0).sqrt();
+        let lambda_max = (trace + disc) / 2.0;
+        let lambda_min = (trace - disc) / 2.0;
+
+        if lambda_min < eps {
+            return Err(format!(
+                "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
+                lambda_min, eps
+            ));
+        }
+        let kappa = lambda_max / lambda_min;
+        return Ok((lambda_min, lambda_max, kappa));
+    }
+
+    // General m >= 3: Power iteration for lambda_max
+    let mut v = vec![1.0 / (m as f64).sqrt(); m];
+    let mut lambda_max = 0.0;
+    for _ in 0..POWER_ITERATION_MAX_ITERS {
+        let w = mat_vec_mul(gram, &v);
+        let norm = vec_norm(&w);
+        if norm < 1e-15 {
+            return Err("Singular Gram matrix: all eigenvalues vanish".into());
+        }
+        for i in 0..m {
+            v[i] = w[i] / norm;
+        }
+        let gv = mat_vec_mul(gram, &v);
+        lambda_max = v.iter().zip(gv.iter()).map(|(&a, &b)| a * b).sum();
+    }
+    // Verify residual for lambda_max
+    let gv = mat_vec_mul(gram, &v);
+    let mut diff_max = vec![0.0; m];
+    for i in 0..m {
+        diff_max[i] = gv[i] - lambda_max * v[i];
+    }
+    let res_max = vec_norm(&diff_max);
+    if res_max > POWER_ITERATION_RESIDUAL_TOL {
+        return Err(format!(
+            "Power iteration failed to converge for lambda_max: residual {:.4e} > tol {:.4e}",
+            res_max, POWER_ITERATION_RESIDUAL_TOL
+        ));
+    }
+
+    // Shifted power iteration on B = lambda_max * I - G for lambda_min
+    let mut b_mat = vec![vec![0.0; m]; m];
+    for i in 0..m {
+        for j in 0..m {
+            let delta = if i == j { lambda_max } else { 0.0 };
+            b_mat[i][j] = delta - gram[i][j];
+        }
+    }
+
+    let mut u: Vec<f64> = (0..m).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let u_norm = vec_norm(&u);
+    for x in u.iter_mut() {
+        *x /= u_norm;
+    }
+
+    let mut mu_max = 0.0;
+    for _ in 0..POWER_ITERATION_MAX_ITERS {
+        let w_b = mat_vec_mul(&b_mat, &u);
+        let norm_b = vec_norm(&w_b);
+        if norm_b < 1e-15 {
+            // All eigenvalues of G are identical to lambda_max
+            mu_max = 0.0;
+            break;
+        }
+        for i in 0..m {
+            u[i] = w_b[i] / norm_b;
+        }
+        let bu = mat_vec_mul(&b_mat, &u);
+        mu_max = u.iter().zip(bu.iter()).map(|(&a, &b)| a * b).sum();
+    }
+
+    let lambda_min = (lambda_max - mu_max).max(0.0);
+    // Verify residual for lambda_min
+    let gu = mat_vec_mul(gram, &u);
+    let mut diff_min = vec![0.0; m];
+    for i in 0..m {
+        diff_min[i] = gu[i] - lambda_min * u[i];
+    }
+    let res_min = vec_norm(&diff_min);
+    if res_min > POWER_ITERATION_RESIDUAL_TOL {
+        return Err(format!(
+            "Shifted power iteration failed to converge for lambda_min: residual {:.4e} > tol {:.4e}",
+            res_min, POWER_ITERATION_RESIDUAL_TOL
+        ));
+    }
+
+    if lambda_min < eps {
+        return Err(format!(
+            "Gram matrix minimum eigenvalue collapse: lambda_min={:.4e} < epsilon={:.4e} (condition number kappa diverges)",
+            lambda_min, eps
+        ));
+    }
+
+    let kappa = lambda_max / lambda_min;
+    Ok((lambda_min, lambda_max, kappa))
+}
+
+/// Verifies that the discrete margin (M - SlopeUB) strictly exceeds the floating-point
+/// perturbation bound 1000 * γ_N * κ, ensuring that SlopeUB violations remain strictly
+/// detectable inside numerical uncertainty. Fails closed when margin <= perturbation.
+pub fn verify_discrete_margin_guard(
+    m: u64,
+    alpha: u64,
+    lf: u64,
+    support_size_n: usize,
+    kappa: f64,
+) -> Result<f64, String> {
+    if kappa < 1.0 {
+        return Err(format!("Invalid condition number kappa < 1.0: {}", kappa));
+    }
+    let l_sigma = compute_slope_ub(m, alpha, lf);
+    let discrete_margin = m.saturating_sub(l_sigma) as f64;
+
+    let gamma_n = compute_gamma_n(support_size_n);
+    let perturbation = (m as f64) * gamma_n * kappa;
+
+    if discrete_margin <= perturbation {
+        return Err(format!(
+            "Discrete margin {:.6e} <= computed perturbation bound {:.6e} (1000 * gamma_{} * {:.2}): SlopeUB violation undetectable inside numerical uncertainty",
+            discrete_margin, perturbation, support_size_n, kappa
+        ));
+    }
+
+    Ok(perturbation)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,11 +615,7 @@ mod tests {
                 );
 
                 // Verify induced spectral state satisfies invariant
-                let state = SpectralState {
-                    effective_lipschitz: l_sigma,
-                    drift: 10,
-                    tau_r: 20,
-                };
+                let state = SpectralState::new(l_sigma, 10, 20);
                 assert!(state.is_invariant_satisfied());
             }
         }
@@ -334,25 +623,13 @@ mod tests {
 
     #[test]
     fn test_drift_exceeded_fails_invariant() {
-        let state_pass = SpectralState {
-            effective_lipschitz: 950,
-            drift: 15,
-            tau_r: 20,
-        };
+        let state_pass = SpectralState::new(950, 15, 20);
         assert!(state_pass.is_invariant_satisfied());
 
-        let state_drift_fail = SpectralState {
-            effective_lipschitz: 950,
-            drift: 25,
-            tau_r: 20,
-        };
+        let state_drift_fail = SpectralState::new(950, 25, 20);
         assert!(!state_drift_fail.is_invariant_satisfied());
 
-        let state_lip_fail = SpectralState {
-            effective_lipschitz: 1000,
-            drift: 5,
-            tau_r: 20,
-        };
+        let state_lip_fail = SpectralState::new(1000, 5, 20);
         assert!(!state_lip_fail.is_invariant_satisfied());
     }
 
