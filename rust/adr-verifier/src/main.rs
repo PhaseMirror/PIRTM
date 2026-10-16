@@ -1,7 +1,8 @@
 use adr_verifier::{
-    append_certificate_to_ledger, check_extension, load_ledger, resolve_ledger_path,
-    verify_ledger_chain, AdrRegistry, ExtensionCheckRequest, KernelBoundaryConfig,
-    LexicalAnchorTable, PhaseMirrorRegistry, GENESIS_PREV_HASH,
+    append_certificate_to_ledger, check_extension, get_ledger_head_announcement, load_ledger,
+    resolve_ledger_path, sync_ledger_with_peer, verify_ledger_chain, AdrRegistry,
+    ExtensionCheckRequest, GossipSyncResult, KernelBoundaryConfig, LexicalAnchorTable,
+    PhaseMirrorRegistry, GENESIS_PREV_HASH,
 };
 use std::env;
 use std::fs;
@@ -327,9 +328,141 @@ fn handle_cnl_command(args: &[String]) {
                 }
             }
         }
+        "gossip-head" => {
+            let mut ledger_path: Option<PathBuf> = None;
+            let mut idx = 3;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let path = resolve_ledger_path(ledger_path.as_deref());
+            match load_ledger(&path) {
+                Ok(entries) => {
+                    let announcement = get_ledger_head_announcement(&entries);
+                    println!(
+                        "[OK] Gossip Ledger Head: seq={}, hash={}, count={}, ts={}",
+                        announcement.sequence,
+                        announcement.head_hash,
+                        announcement.entry_count,
+                        announcement.timestamp_utc
+                    );
+                    if let Ok(json_str) = serde_json::to_string_pretty(&announcement) {
+                        println!("{}", json_str);
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[FATAL] Failed to load ledger '{}': {}",
+                        path.display(),
+                        e
+                    );
+                    process::exit(1);
+                }
+            }
+        }
+        "sync-ledger" => {
+            let peer_ledger_arg = match args.get(3) {
+                Some(p) => p.clone(),
+                None => {
+                    eprintln!(
+                        "[FATAL] Usage: adr-verifier cnl sync-ledger <PEER_LEDGER> [--ledger <LOCAL_LEDGER>]"
+                    );
+                    process::exit(1);
+                }
+            };
+            let peer_ledger_path = PathBuf::from(peer_ledger_arg);
+
+            let mut local_ledger_path: Option<PathBuf> = None;
+            let mut idx = 4;
+            while idx < args.len() {
+                match args[idx].as_str() {
+                    "--ledger" => {
+                        if let Some(val) = args.get(idx + 1) {
+                            local_ledger_path = Some(PathBuf::from(val));
+                            idx += 2;
+                        } else {
+                            eprintln!("[FATAL] Flag --ledger requires an argument");
+                            process::exit(1);
+                        }
+                    }
+                    other => {
+                        eprintln!("[FATAL] Unknown flag '{}'", other);
+                        process::exit(1);
+                    }
+                }
+            }
+
+            let peer_entries = match load_ledger(&peer_ledger_path) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    eprintln!(
+                        "[FATAL] Failed to load peer ledger at '{}': {}",
+                        peer_ledger_path.display(),
+                        e
+                    );
+                    process::exit(1);
+                }
+            };
+
+            let local_path = resolve_ledger_path(local_ledger_path.as_deref());
+            match sync_ledger_with_peer(&local_path, &peer_entries, false) {
+                Ok(result) => {
+                    match result {
+                        GossipSyncResult::InSync { sequence, head_hash } => {
+                            println!(
+                                "[OK] Gossip sync: local and peer are IN SYNC (seq={}, head={})",
+                                sequence, head_hash
+                            );
+                        }
+                        GossipSyncResult::PeerBehind {
+                            local_sequence,
+                            peer_sequence,
+                            head_hash: _,
+                        } => {
+                            println!(
+                                "[OK] Gossip sync: peer is BEHIND local (local_seq={}, peer_seq={}). No update applied.",
+                                local_sequence, peer_sequence
+                            );
+                        }
+                        GossipSyncResult::Advanced {
+                            prior_sequence,
+                            new_sequence,
+                            prior_head_hash: _,
+                            new_head_hash,
+                            entries_appended,
+                        } => {
+                            println!(
+                                "[OK] Gossip sync: local ledger ADVANCED from seq {} to {} (+{} entries, new_head={})",
+                                prior_sequence, new_sequence, entries_appended, new_head_hash
+                            );
+                        }
+                    }
+                    process::exit(0);
+                }
+                Err(e) => {
+                    eprintln!("[FATAL] Gossip synchronization failed: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head",
+                "[FATAL] Unknown CNL subcommand '{}'. Available: check-extension, list, verify-hash, verify-ledger, ledger-head, gossip-head, sync-ledger",
                 subcmd
             );
             process::exit(1);

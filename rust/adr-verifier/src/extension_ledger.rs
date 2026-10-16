@@ -300,6 +300,209 @@ pub fn append_certificate_to_ledger(
     Ok(new_entry)
 }
 
+/// An announcement of a node's ledger head state for gossip propagation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LedgerHeadAnnouncement {
+    pub sequence: u64,
+    pub head_hash: String,
+    pub timestamp_utc: String,
+    pub entry_count: u64,
+}
+
+/// The result of attempting to synchronize a local ledger with peer entries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GossipSyncResult {
+    /// Peer is already synchronized with local ledger (identical head).
+    InSync { sequence: u64, head_hash: String },
+    /// Local ledger is ahead of peer; peer is a strict prefix.
+    PeerBehind {
+        local_sequence: u64,
+        peer_sequence: u64,
+        head_hash: String,
+    },
+    /// Peer provided a verified forward extension of local ledger; entries appended.
+    Advanced {
+        prior_sequence: u64,
+        new_sequence: u64,
+        prior_head_hash: String,
+        new_head_hash: String,
+        entries_appended: usize,
+    },
+}
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum GossipSyncError {
+    #[error("Divergent fork rejected: at sequence {fork_sequence}, local entry hash '{local_hash}' differs from peer entry hash '{peer_hash}' (attempted history rewrite)")]
+    DivergentForkRejected {
+        fork_sequence: u64,
+        local_hash: String,
+        peer_hash: String,
+    },
+
+    #[error("Competing fork at same height {sequence}: local head '{local_hash}' != peer head '{peer_hash}'")]
+    CompetingForkAtSameHeight {
+        sequence: u64,
+        local_hash: String,
+        peer_hash: String,
+    },
+
+    #[error("Peer chain is internally invalid: {0}")]
+    InvalidPeerChain(#[from] LedgerError),
+
+    #[error("IO error during synchronization: {0}")]
+    IoError(String),
+}
+
+/// Generates a gossip head announcement from a list of verified entries.
+pub fn get_ledger_head_announcement(entries: &[ExtensionLedgerEntry]) -> LedgerHeadAnnouncement {
+    if let Some(last) = entries.last() {
+        LedgerHeadAnnouncement {
+            sequence: last.sequence,
+            head_hash: last.entry_hash.clone(),
+            timestamp_utc: last.timestamp_utc.clone(),
+            entry_count: entries.len() as u64,
+        }
+    } else {
+        LedgerHeadAnnouncement {
+            sequence: 0,
+            head_hash: GENESIS_PREV_HASH.to_string(),
+            timestamp_utc: "1970-01-01T00:00:00Z".to_string(),
+            entry_count: 0,
+        }
+    }
+}
+
+/// Evaluates gossip synchronization between a local ledger file and peer entries.
+///
+/// Rules:
+/// 1. Self-Verifying: Peer entries must form a strictly valid cryptographic hash chain.
+/// 2. Common Ancestor / Prefix Invariant:
+///    - For all sequences up to min(local_len, peer_len), `local[i].entry_hash == peer[i].entry_hash`.
+///    - If any entry diverges, returns `DivergentForkRejected` and aborts without modifying local ledger.
+/// 3. Monotonic Progression:
+///    - If `peer.len() <= local.len()`: No forward progression. Returns `InSync` or `PeerBehind`.
+///    - If `peer.len() > local.len()`: Local is a verified prefix. Peer's forward entries [local_len..peer_len]
+///      are verified and appended to `local_path` (unless `dry_run` is set). Returns `Advanced`.
+pub fn sync_ledger_with_peer(
+    local_path: &Path,
+    peer_entries: &[ExtensionLedgerEntry],
+    dry_run: bool,
+) -> Result<GossipSyncResult, GossipSyncError> {
+    // 1. Verify internal integrity of peer entries
+    verify_ledger_chain(peer_entries)?;
+
+    // 2. Load and verify local entries
+    let local_entries = load_ledger(local_path).map_err(GossipSyncError::InvalidPeerChain)?;
+    verify_ledger_chain(&local_entries).map_err(GossipSyncError::InvalidPeerChain)?;
+
+    let local_len = local_entries.len();
+    let peer_len = peer_entries.len();
+
+    // Special case: local is empty, peer has valid chain
+    if local_len == 0 {
+        if peer_len == 0 {
+            return Ok(GossipSyncResult::InSync {
+                sequence: 0,
+                head_hash: GENESIS_PREV_HASH.to_string(),
+            });
+        }
+        if !dry_run {
+            if let Some(parent) = local_path.parent() {
+                if !parent.as_os_str().is_empty() && !parent.exists() {
+                    fs::create_dir_all(parent).map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+                }
+            }
+            let mut file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(local_path)
+                .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+            for entry in peer_entries {
+                let serialized = serde_json::to_string(entry)
+                    .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+                writeln!(file, "{}", serialized)
+                    .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+            }
+        }
+        return Ok(GossipSyncResult::Advanced {
+            prior_sequence: 0,
+            new_sequence: peer_len as u64,
+            prior_head_hash: GENESIS_PREV_HASH.to_string(),
+            new_head_hash: peer_entries.last().unwrap().entry_hash.clone(),
+            entries_appended: peer_len,
+        });
+    }
+
+    // Special case: peer is empty, local has entries
+    if peer_len == 0 {
+        return Ok(GossipSyncResult::PeerBehind {
+            local_sequence: local_len as u64,
+            peer_sequence: 0,
+            head_hash: local_entries.last().unwrap().entry_hash.clone(),
+        });
+    }
+
+    // Check common prefix for fork detection
+    let min_len = local_len.min(peer_len);
+    for i in 0..min_len {
+        if local_entries[i].entry_hash != peer_entries[i].entry_hash {
+            if local_len == peer_len && i == min_len - 1 {
+                return Err(GossipSyncError::CompetingForkAtSameHeight {
+                    sequence: (i + 1) as u64,
+                    local_hash: local_entries[i].entry_hash.clone(),
+                    peer_hash: peer_entries[i].entry_hash.clone(),
+                });
+            }
+            return Err(GossipSyncError::DivergentForkRejected {
+                fork_sequence: (i + 1) as u64,
+                local_hash: local_entries[i].entry_hash.clone(),
+                peer_hash: peer_entries[i].entry_hash.clone(),
+            });
+        }
+    }
+
+    if peer_len < local_len {
+        Ok(GossipSyncResult::PeerBehind {
+            local_sequence: local_len as u64,
+            peer_sequence: peer_len as u64,
+            head_hash: local_entries.last().unwrap().entry_hash.clone(),
+        })
+    } else if peer_len == local_len {
+        Ok(GossipSyncResult::InSync {
+            sequence: local_len as u64,
+            head_hash: local_entries.last().unwrap().entry_hash.clone(),
+        })
+    } else {
+        // peer_len > local_len: verified forward extension
+        let forward_entries = &peer_entries[local_len..peer_len];
+        if !dry_run {
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(local_path)
+                .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+            for entry in forward_entries {
+                let serialized = serde_json::to_string(entry)
+                    .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+                writeln!(file, "{}", serialized)
+                    .map_err(|e| GossipSyncError::IoError(e.to_string()))?;
+            }
+            // Re-verify entire file on disk
+            let updated = load_ledger(local_path).map_err(GossipSyncError::InvalidPeerChain)?;
+            verify_ledger_chain(&updated).map_err(GossipSyncError::InvalidPeerChain)?;
+        }
+
+        Ok(GossipSyncResult::Advanced {
+            prior_sequence: local_len as u64,
+            new_sequence: peer_len as u64,
+            prior_head_hash: local_entries.last().unwrap().entry_hash.clone(),
+            new_head_hash: peer_entries.last().unwrap().entry_hash.clone(),
+            entries_appended: forward_entries.len(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,5 +675,108 @@ mod tests {
         let entries = vec![entry1];
         let res = verify_ledger_chain(&entries);
         assert!(matches!(res, Err(LedgerError::CertificateHashMismatch { .. })));
+    }
+
+    #[test]
+    fn test_gossip_sync_identical_chains_in_sync() {
+        let tmp = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        append_certificate_to_ledger(&tmp.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        let entries = load_ledger(&tmp.path).unwrap();
+        let res = sync_ledger_with_peer(&tmp.path, &entries, false).unwrap();
+        assert!(matches!(res, GossipSyncResult::InSync { sequence: 1, .. }));
+    }
+
+    #[test]
+    fn test_gossip_sync_peer_behind() {
+        let tmp = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2 = make_test_cert("scale", 3, "verb");
+        append_certificate_to_ledger(&tmp.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let all_entries = load_ledger(&tmp.path).unwrap();
+        let peer_prefix = vec![all_entries[0].clone()];
+
+        let res = sync_ledger_with_peer(&tmp.path, &peer_prefix, false).unwrap();
+        assert!(matches!(res, GossipSyncResult::PeerBehind { local_sequence: 2, peer_sequence: 1, .. }));
+    }
+
+    #[test]
+    fn test_gossip_sync_valid_forward_extension_advances() {
+        let tmp_local = TempLedgerFile::new();
+        let tmp_peer = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2 = make_test_cert("scale", 3, "verb");
+
+        // Local has cert1
+        append_certificate_to_ledger(&tmp_local.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        // Peer has cert1 then cert2
+        append_certificate_to_ledger(&tmp_peer.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_peer.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let peer_entries = load_ledger(&tmp_peer.path).unwrap();
+        let res = sync_ledger_with_peer(&tmp_local.path, &peer_entries, false).unwrap();
+        match res {
+            GossipSyncResult::Advanced { prior_sequence, new_sequence, entries_appended, .. } => {
+                assert_eq!(prior_sequence, 1);
+                assert_eq!(new_sequence, 2);
+                assert_eq!(entries_appended, 1);
+            }
+            _ => panic!("Expected Advanced result"),
+        }
+
+        let updated_local = load_ledger(&tmp_local.path).unwrap();
+        assert_eq!(updated_local.len(), 2);
+        assert_eq!(updated_local[1].certificate.token, "scale");
+        assert!(verify_ledger_chain(&updated_local).is_ok());
+    }
+
+    #[test]
+    fn test_gossip_sync_divergent_fork_rejected() {
+        let tmp_local = TempLedgerFile::new();
+        let tmp_peer = TempLedgerFile::new();
+        let cert1 = make_test_cert("deploy", 2, "verb");
+        let cert2_local = make_test_cert("scale", 3, "verb");
+        let cert2_peer = make_test_cert("menthol", 53, "sector");
+
+        append_certificate_to_ledger(&tmp_local.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_local.path, &cert2_local, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        append_certificate_to_ledger(&tmp_peer.path, &cert1, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_peer.path, &cert2_peer, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let peer_entries = load_ledger(&tmp_peer.path).unwrap();
+        let res = sync_ledger_with_peer(&tmp_local.path, &peer_entries, false);
+        assert!(res.is_err(), "Competing fork at sequence 2 must be rejected");
+        let err = res.unwrap_err();
+        assert!(matches!(err, GossipSyncError::CompetingForkAtSameHeight { sequence: 2, .. }));
+
+        // Ensure local ledger was NOT modified
+        let local_check = load_ledger(&tmp_local.path).unwrap();
+        assert_eq!(local_check.len(), 2);
+        assert_eq!(local_check[1].certificate.token, "scale");
+    }
+
+    #[test]
+    fn test_gossip_sync_history_reorg_fork_rejected() {
+        let tmp_local = TempLedgerFile::new();
+        let tmp_peer = TempLedgerFile::new();
+        let cert1_a = make_test_cert("deploy", 2, "verb");
+        let cert1_b = make_test_cert("scale", 3, "verb");
+        let cert2 = make_test_cert("menthol", 53, "sector");
+
+        append_certificate_to_ledger(&tmp_local.path, &cert1_a, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+
+        append_certificate_to_ledger(&tmp_peer.path, &cert1_b, Some("2026-10-16T00:00:00Z".to_string())).unwrap();
+        append_certificate_to_ledger(&tmp_peer.path, &cert2, Some("2026-10-16T00:01:00Z".to_string())).unwrap();
+
+        let peer_entries = load_ledger(&tmp_peer.path).unwrap();
+        let res = sync_ledger_with_peer(&tmp_local.path, &peer_entries, false);
+        assert!(res.is_err(), "Divergent root history must be rejected");
+        let err = res.unwrap_err();
+        assert!(matches!(err, GossipSyncError::DivergentForkRejected { fork_sequence: 1, .. }));
     }
 }
