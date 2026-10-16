@@ -12,6 +12,7 @@
 //! as an operational runtime invariant.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Fixed-point scaling modulus representing 1.0 (unit Lipschitz bound).
 pub const LIPSCHITZ_MODULUS: u64 = 1000;
@@ -51,7 +52,7 @@ pub fn compute_gap_lb(m: u64, alpha: u64, lf: u64) -> u64 {
 }
 
 /// Spectral state representation for MOC and ADR-062 compliance.
-/// Matches `PhaseMirror.SpectralState` in `SigmaKernel.lean`.
+/// Matches `PhaseMirror.SpectralState` and `PhaseMirror.ShiftedSpectralGap` in `SigmaKernel.lean`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SpectralState {
     pub effective_lipschitz: u64,
@@ -65,6 +66,14 @@ pub struct SpectralState {
     pub residual_min: f64,
     #[serde(default = "default_true")]
     pub residual_cert_valid: bool,
+    #[serde(default = "default_delta")]
+    pub spectral_gap_delta: f64,
+    #[serde(default)]
+    pub convergence_ratio: f64,
+    #[serde(default = "default_true")]
+    pub gap_cert_valid: bool,
+    #[serde(default)]
+    pub state_hash: [u8; 32],
 }
 
 fn default_kappa() -> f64 {
@@ -75,31 +84,63 @@ fn default_true() -> bool {
     true
 }
 
+fn default_delta() -> f64 {
+    1.0
+}
+
 impl Default for SpectralState {
     fn default() -> Self {
-        Self {
-            effective_lipschitz: 0,
-            drift: 0,
-            tau_r: 100,
-            support_size_n: 0,
-            kappa: 1.0,
-            residual_min: 0.0,
-            residual_cert_valid: true,
-        }
+        Self::new(0, 0, 100)
     }
 }
 
 impl SpectralState {
+    pub fn compute_hash(
+        effective_lipschitz: u64,
+        drift: u64,
+        tau_r: u64,
+        support_size_n: u64,
+        kappa: f64,
+        residual_min: f64,
+        residual_cert_valid: bool,
+        spectral_gap_delta: f64,
+        convergence_ratio: f64,
+        gap_cert_valid: bool,
+    ) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(&effective_lipschitz.to_be_bytes());
+        hasher.update(&drift.to_be_bytes());
+        hasher.update(&tau_r.to_be_bytes());
+        hasher.update(&support_size_n.to_be_bytes());
+        hasher.update(&kappa.to_bits().to_be_bytes());
+        hasher.update(&residual_min.to_bits().to_be_bytes());
+        hasher.update(&[if residual_cert_valid { 1u8 } else { 0u8 }]);
+        hasher.update(&spectral_gap_delta.to_bits().to_be_bytes());
+        hasher.update(&convergence_ratio.to_bits().to_be_bytes());
+        hasher.update(&[if gap_cert_valid { 1u8 } else { 0u8 }]);
+        let digest = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&digest);
+        out
+    }
+
+    pub fn state_hash_hex(&self) -> String {
+        hex::encode(self.state_hash)
+    }
+
     pub fn new(effective_lipschitz: u64, drift: u64, tau_r: u64) -> Self {
-        Self {
+        Self::with_certified_gap(
             effective_lipschitz,
             drift,
             tau_r,
-            support_size_n: 0,
-            kappa: 1.0,
-            residual_min: 0.0,
-            residual_cert_valid: true,
-        }
+            0,
+            1.0,
+            0.0,
+            true,
+            1.0,
+            0.0,
+            true,
+        )
     }
 
     pub fn with_spectral_bound(
@@ -109,15 +150,18 @@ impl SpectralState {
         support_size_n: u64,
         kappa: f64,
     ) -> Self {
-        Self {
+        Self::with_certified_gap(
             effective_lipschitz,
             drift,
             tau_r,
             support_size_n,
             kappa,
-            residual_min: 0.0,
-            residual_cert_valid: true,
-        }
+            0.0,
+            true,
+            1.0,
+            0.5,
+            true,
+        )
     }
 
     pub fn with_certified_residual(
@@ -129,6 +173,44 @@ impl SpectralState {
         residual_min: f64,
         residual_cert_valid: bool,
     ) -> Self {
+        Self::with_certified_gap(
+            effective_lipschitz,
+            drift,
+            tau_r,
+            support_size_n,
+            kappa,
+            residual_min,
+            residual_cert_valid,
+            1.0,
+            0.5,
+            true,
+        )
+    }
+
+    pub fn with_certified_gap(
+        effective_lipschitz: u64,
+        drift: u64,
+        tau_r: u64,
+        support_size_n: u64,
+        kappa: f64,
+        residual_min: f64,
+        residual_cert_valid: bool,
+        spectral_gap_delta: f64,
+        convergence_ratio: f64,
+        gap_cert_valid: bool,
+    ) -> Self {
+        let state_hash = Self::compute_hash(
+            effective_lipschitz,
+            drift,
+            tau_r,
+            support_size_n,
+            kappa,
+            residual_min,
+            residual_cert_valid,
+            spectral_gap_delta,
+            convergence_ratio,
+            gap_cert_valid,
+        );
         Self {
             effective_lipschitz,
             drift,
@@ -137,6 +219,10 @@ impl SpectralState {
             kappa,
             residual_min,
             residual_cert_valid,
+            spectral_gap_delta,
+            convergence_ratio,
+            gap_cert_valid,
+            state_hash,
         }
     }
 
@@ -152,13 +238,30 @@ impl SpectralState {
 
     /// Invariant check: L_eff < LIPSCHITZ_MODULUS (1000) and drift <= tau_r,
     /// discrete margin strictly exceeds floating-point perturbation bound,
-    /// and power-iteration residual certificate is valid.
-    /// Matches `PhaseMirror.SigmaKernelInvariant` in `SigmaKernel.lean`.
+    /// power-iteration residual certificate is valid,
+    /// shifted spectral gap condition is satisfied (delta > 0, q < 1.0),
+    /// and state_hash cryptographically binds the complete state.
+    /// Matches `PhaseMirror.SigmaKernelInvariant` and `PhaseMirror.ShiftedSpectralGap` in `SigmaKernel.lean`.
     pub fn is_invariant_satisfied(&self) -> bool {
+        let expected_hash = Self::compute_hash(
+            self.effective_lipschitz,
+            self.drift,
+            self.tau_r,
+            self.support_size_n,
+            self.kappa,
+            self.residual_min,
+            self.residual_cert_valid,
+            self.spectral_gap_delta,
+            self.convergence_ratio,
+            self.gap_cert_valid,
+        );
         self.effective_lipschitz < LIPSCHITZ_MODULUS
             && self.drift <= self.tau_r
             && self.is_margin_safe(LIPSCHITZ_MODULUS)
             && self.residual_cert_valid
+            && self.gap_cert_valid
+            && self.state_hash == expected_hash
+            && (self.support_size_n <= 1 || (self.spectral_gap_delta > 0.0 && self.convergence_ratio < 1.0))
     }
 }
 
@@ -426,7 +529,7 @@ fn vec_norm(v: &[f64]) -> f64 {
 }
 
 /// A-posteriori certificate produced by power iteration / shifted power iteration.
-/// Formally matched to `PhaseMirror.PowerIterationCertificate` in `SigmaKernel.lean`.
+/// Formally matched to `PhaseMirror.PowerIterationCertificate` and `PhaseMirror.ShiftedSpectralGap` in `SigmaKernel.lean`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PowerIterationCertificate {
     pub lambda_est: f64,
@@ -434,17 +537,38 @@ pub struct PowerIterationCertificate {
     pub residual_tol: f64,
     pub epsilon_min: f64,
     pub certified_lambda_lb: f64,
+    #[serde(default = "default_delta")]
+    pub spectral_gap_delta: f64,
+    #[serde(default)]
+    pub convergence_ratio: f64,
+    #[serde(default = "default_true")]
+    pub gap_cert_valid: bool,
 }
 
 impl PowerIterationCertificate {
     pub fn new(lambda_est: f64, residual: f64, residual_tol: f64, epsilon_min: f64) -> Self {
+        Self::with_spectral_gap(lambda_est, residual, residual_tol, epsilon_min, 1.0, 0.5)
+    }
+
+    pub fn with_spectral_gap(
+        lambda_est: f64,
+        residual: f64,
+        residual_tol: f64,
+        epsilon_min: f64,
+        spectral_gap_delta: f64,
+        convergence_ratio: f64,
+    ) -> Self {
         let certified_lambda_lb = (lambda_est - residual).max(0.0);
+        let gap_cert_valid = spectral_gap_delta > 0.0 && convergence_ratio < 1.0;
         Self {
             lambda_est,
             residual,
             residual_tol,
             epsilon_min,
             certified_lambda_lb,
+            spectral_gap_delta,
+            convergence_ratio,
+            gap_cert_valid,
         }
     }
 
@@ -453,6 +577,8 @@ impl PowerIterationCertificate {
     /// 2. residual < lambda_est (uncertainty strictly smaller than eigenvalue, keeping spectrum away from zero)
     /// 3. certified_lambda_lb >= epsilon_min (certified true eigenvalue satisfies spectral gap)
     /// 4. epsilon_min > 0.0 (strictly positive gap floor)
+    /// 5. spectral_gap_delta > 0.0 (strictly positive spectral gap separating lambda_2 from lambda_min)
+    /// 6. convergence_ratio < 1.0 (strict contraction of shifted power iteration scheme)
     pub fn verify(&self) -> Result<f64, String> {
         if self.epsilon_min <= 0.0 {
             return Err(format!(
@@ -478,6 +604,18 @@ impl PowerIterationCertificate {
                 self.certified_lambda_lb, self.epsilon_min
             ));
         }
+        if self.spectral_gap_delta <= 0.0 {
+            return Err(format!(
+                "Shifted spectral gap collapse: delta {:.4e} <= 0.0",
+                self.spectral_gap_delta
+            ));
+        }
+        if self.convergence_ratio >= 1.0 {
+            return Err(format!(
+                "Shifted power iteration non-contractive: convergence ratio q {:.4e} >= 1.0",
+                self.convergence_ratio
+            ));
+        }
         Ok(self.certified_lambda_lb)
     }
 
@@ -488,8 +626,9 @@ impl PowerIterationCertificate {
 
 /// Computes the spectral gap (lambda_min, lambda_max, condition number kappa, PowerIterationCertificate)
 /// of a symmetric Gram matrix using power iteration and shifted power iteration, verifying the residual
-/// ||G v - λ v|| <= 1e-6. Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N, kappa) = (2^-53 / 1000) * gamma_N * kappa
-/// and requires the power-iteration residual to be strictly smaller than the gap.
+/// ||G v - λ v|| <= 1e-6. Enforces scaled minimum eigenvalue gap lambda_min >= threshold(N, kappa) = (2^-53 / 1000) * gamma_N * kappa,
+/// computes the spectral gap delta = lambda_2 - lambda_min via deflated power iteration, and certifies
+/// that shifted power iteration strictly contracts with convergence ratio q = mu_2 / mu_1 < 1.0.
 pub fn compute_gram_spectral_gap_certified(
     gram: &[Vec<f64>],
     support_size_n: Option<usize>,
@@ -506,7 +645,14 @@ pub fn compute_gram_spectral_gap_certified(
 
     if m == 1 {
         let val = gram[0][0];
-        let cert = PowerIterationCertificate::new(val, 0.0, POWER_ITERATION_RESIDUAL_TOL, eps);
+        let cert = PowerIterationCertificate::with_spectral_gap(
+            val,
+            0.0,
+            POWER_ITERATION_RESIDUAL_TOL,
+            eps,
+            eps,
+            0.0,
+        );
         cert.verify()?;
         return Ok((val, val, 1.0, cert));
     }
@@ -521,7 +667,16 @@ pub fn compute_gram_spectral_gap_certified(
         let lambda_max = (trace + disc) / 2.0;
         let lambda_min = (trace - disc) / 2.0;
 
-        let cert = PowerIterationCertificate::new(lambda_min, 0.0, POWER_ITERATION_RESIDUAL_TOL, eps);
+        let delta = (lambda_max - lambda_min).max(0.0);
+        let q = if delta > 1e-15 { 0.0 } else { 1.0 };
+        let cert = PowerIterationCertificate::with_spectral_gap(
+            lambda_min,
+            0.0,
+            POWER_ITERATION_RESIDUAL_TOL,
+            eps,
+            delta,
+            q,
+        );
         cert.verify()?;
         let kappa = lambda_max / cert.certified_lambda_lb;
         return Ok((lambda_min, lambda_max, kappa, cert));
@@ -560,8 +715,8 @@ pub fn compute_gram_spectral_gap_certified(
     let mut b_mat = vec![vec![0.0; m]; m];
     for i in 0..m {
         for j in 0..m {
-            let delta = if i == j { lambda_max } else { 0.0 };
-            b_mat[i][j] = delta - gram[i][j];
+            let delta_diag = if i == j { lambda_max } else { 0.0 };
+            b_mat[i][j] = delta_diag - gram[i][j];
         }
     }
 
@@ -596,7 +751,62 @@ pub fn compute_gram_spectral_gap_certified(
     }
     let res_min = vec_norm(&diff_min);
 
-    let cert = PowerIterationCertificate::new(lambda_min, res_min, POWER_ITERATION_RESIDUAL_TOL, eps);
+    // Deflate B along u to find mu_2 (subdominant eigenvalue of B)
+    let mut b2_mat = vec![vec![0.0; m]; m];
+    for i in 0..m {
+        for j in 0..m {
+            b2_mat[i][j] = b_mat[i][j] - mu_max * u[i] * u[j];
+        }
+    }
+
+    let mut u2: Vec<f64> = (0..m).map(|i| if i % 2 == 1 { 1.0 } else { -1.0 }).collect();
+    let dot_u = u2.iter().zip(u.iter()).map(|(&a, &b)| a * b).sum::<f64>();
+    for i in 0..m {
+        u2[i] -= dot_u * u[i];
+    }
+    let u2_norm = vec_norm(&u2);
+    if u2_norm > 1e-15 {
+        for x in u2.iter_mut() {
+            *x /= u2_norm;
+        }
+    }
+
+    let mut mu_2 = 0.0;
+    for _ in 0..POWER_ITERATION_MAX_ITERS {
+        let w2 = mat_vec_mul(&b2_mat, &u2);
+        let dot = w2.iter().zip(u.iter()).map(|(&a, &b)| a * b).sum::<f64>();
+        let mut w2_ortho = vec![0.0; m];
+        for i in 0..m {
+            w2_ortho[i] = w2[i] - dot * u[i];
+        }
+        let norm2 = vec_norm(&w2_ortho);
+        if norm2 < 1e-15 {
+            mu_2 = 0.0;
+            break;
+        }
+        for i in 0..m {
+            u2[i] = w2_ortho[i] / norm2;
+        }
+        let b2_u2 = mat_vec_mul(&b_mat, &u2);
+        mu_2 = u2.iter().zip(b2_u2.iter()).map(|(&a, &b)| a * b).sum();
+    }
+    mu_2 = mu_2.max(0.0);
+
+    let delta = (mu_max - mu_2).max(0.0);
+    let q = if mu_max > 1e-15 {
+        (mu_2 / mu_max).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+
+    let cert = PowerIterationCertificate::with_spectral_gap(
+        lambda_min,
+        res_min,
+        POWER_ITERATION_RESIDUAL_TOL,
+        eps,
+        delta,
+        q,
+    );
     cert.verify()?;
 
     let kappa = lambda_max / cert.certified_lambda_lb;
@@ -1021,17 +1231,56 @@ mod tests {
         assert!(cert.is_valid());
         assert!(cert.residual <= 1e-6);
         assert!(cert.certified_lambda_lb >= cert.epsilon_min);
+        assert!(cert.spectral_gap_delta > 0.0, "Delta must be strictly positive: {}", cert.spectral_gap_delta);
+        assert!(cert.convergence_ratio < 1.0, "Convergence ratio must be < 1.0: {}", cert.convergence_ratio);
 
-        let state = SpectralState::with_certified_residual(
-            900, 10, 50, 3, kappa, cert.residual, cert.is_valid(),
+        let state = SpectralState::with_certified_gap(
+            900, 10, 50, 3, kappa, cert.residual, cert.is_valid(), cert.spectral_gap_delta, cert.convergence_ratio, cert.gap_cert_valid,
         );
         assert!(state.is_invariant_satisfied());
+        assert_eq!(
+            state.state_hash,
+            SpectralState::compute_hash(900, 10, 50, 3, kappa, cert.residual, cert.is_valid(), cert.spectral_gap_delta, cert.convergence_ratio, cert.gap_cert_valid)
+        );
 
         // An invalid residual cert marks state invariant as unsatisfied
-        let state_invalid_cert = SpectralState::with_certified_residual(
-            900, 10, 50, 3, kappa, 1e-4, false,
+        let state_invalid_cert = SpectralState::with_certified_gap(
+            900, 10, 50, 3, kappa, 1e-4, false, cert.spectral_gap_delta, cert.convergence_ratio, cert.gap_cert_valid,
         );
         assert!(!state_invalid_cert.is_invariant_satisfied());
+    }
+
+    #[test]
+    fn test_shifted_spectral_gap_certificate_validation() {
+        // 1. Valid shifted gap certificate passes
+        let cert_valid = PowerIterationCertificate::with_spectral_gap(0.5, 1e-7, 1e-6, 1e-8, 0.2, 0.6);
+        assert!(cert_valid.is_valid());
+
+        // 2. Collapsed spectral gap (delta <= 0) is rejected fail-closed
+        let cert_gap_zero = PowerIterationCertificate::with_spectral_gap(0.5, 1e-7, 1e-6, 1e-8, 0.0, 0.6);
+        assert!(!cert_gap_zero.is_valid());
+        assert!(cert_gap_zero.verify().unwrap_err().contains("Shifted spectral gap collapse"));
+
+        // 3. Non-contractive shifted iteration (q >= 1.0) is rejected fail-closed
+        let cert_q_one = PowerIterationCertificate::with_spectral_gap(0.5, 1e-7, 1e-6, 1e-8, 0.2, 1.0);
+        assert!(!cert_q_one.is_valid());
+        assert!(cert_q_one.verify().unwrap_err().contains("Shifted power iteration non-contractive"));
+    }
+
+    #[test]
+    fn test_spectral_state_hash_binding_tamper_detection() {
+        let state = SpectralState::with_certified_gap(900, 10, 50, 3, 2.0, 1e-7, true, 0.3, 0.6, true);
+        assert!(state.is_invariant_satisfied());
+
+        // Tampering with spectral_gap_delta without updating state_hash fails invariant
+        let mut tampered = state;
+        tampered.spectral_gap_delta = 0.5;
+        assert!(!tampered.is_invariant_satisfied(), "Tampered delta must fail cryptographic hash check");
+
+        // Tampering with convergence_ratio fails invariant
+        let mut tampered_q = state;
+        tampered_q.convergence_ratio = 0.99;
+        assert!(!tampered_q.is_invariant_satisfied(), "Tampered q must fail cryptographic hash check");
     }
 }
 
