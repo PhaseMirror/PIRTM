@@ -9,6 +9,7 @@ pub mod http_server;
 pub mod hundian;
 pub mod energy;
 pub mod xi_constitution;
+pub mod unified_dispatch;
 
 use std::path::{Path, PathBuf};
 use serde_json::json;
@@ -18,6 +19,12 @@ use std::io::Write;
 pub use spectral::{Ensemble, EnsembleContractivityReceipt, EnsembleError, PosRat, check_small_gain, validate_and_certify};
 pub use governance::Sentinel;
 pub use http_server::{GovernedHttpServer, GovernedHttpResponse};
+pub use unified_dispatch::{
+    UnifiedDispatchLoop, TransitionPayload, DispatchReceipt, DispatchError,
+    SubstrateState, RecurrenceState, LawfulnessStatus,
+    certify_unified_stack, evaluate_open_core_step, evaluate_recurrence,
+    evaluate_substrate, pweh_hash_step, check_monotonic_seq_index,
+};
 
 #[derive(Debug, Default)]
 pub struct RuntimeConfig {

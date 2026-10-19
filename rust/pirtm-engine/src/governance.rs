@@ -69,6 +69,42 @@ impl<P: ManifoldStateProvider> Sentinel<P> {
         Ok(receipt_hash)
     }
 
+    /// Enforces the fail-closed WardMonitor pre-commit gate before committing state transitions.
+    pub fn validate_ward_pre_commit(
+        &self,
+        gamma_milli: u64,
+        energy_offset: u64,
+        floor_offset: u64,
+        uncertified_count: u64,
+        commutation_defect: u64,
+    ) -> Result<(), String> {
+        if gamma_milli >= 1000 {
+            self.trigger_kill(&format!(
+                "SIG_GOV_KILL [Hazard 1]: Contractivity loss (gamma_milli = {} >= 1000)",
+                gamma_milli
+            ));
+        }
+        if energy_offset < floor_offset {
+            self.trigger_kill(&format!(
+                "SIG_GOV_KILL [Hazard 2]: Energy floor breach (energy_offset = {} < floor_offset = {})",
+                energy_offset, floor_offset
+            ));
+        }
+        if uncertified_count > 0 {
+            self.trigger_kill(&format!(
+                "SIG_GOV_KILL [Hazard 3]: Uncertified prime present on execution path (count = {})",
+                uncertified_count
+            ));
+        }
+        if commutation_defect > 0 {
+            self.trigger_kill(&format!(
+                "SIG_GOV_KILL [Hazard 4]: SOT commutation defect breach (defect = {} > 0)",
+                commutation_defect
+            ));
+        }
+        Ok(())
+    }
+
     pub fn trigger_kill(&self, reason: &str) -> ! {
         eprintln!("SIG_GOV_KILL: {}", reason);
         record_audit_event("sentinel_kill", json!({ "reason": reason }));
